@@ -146,6 +146,8 @@ void trip::interpolate() {
   auto bounds = std::vector<bound>{};
   bounds.reserve(stop_seq_.size());
   for (auto const [i, x] : utl::enumerate(event_times_)) {
+    // TODO Fixed, Interpolate, Fixed
+    // ? => ? (Arrival = Departure) < (Arrival < Departure)  < (Arrival = Departure) ??
     bounds.emplace_back(x.arr_);
     bounds.emplace_back(x.dep_);
   }
@@ -154,13 +156,14 @@ void trip::interpolate() {
   auto max_idx = 0;
   for (auto it = bounds.rbegin(); it != bounds.rend(); ++it) {
     if (it->max_ == kInterpolate) {
-      it->max_ = max;
+      it->max_ = max;  // Incorrect data if event_stops.rbegin().dep_ == kInterpolate
       it->max_idx_ = max_idx;
     } else {
       max = it->max_;
       max_idx = static_cast<unsigned>(&(*it) - &bounds.front()) / 2U;
     }
   }
+  // max == kInterpolate <=> ∀ bound: bound.max == kInterpolate <=> min == kInterpolate (da min == max == minutes_after_midnight_t)
   utl::verify(max != kInterpolate, "last arrival cannot be interpolated");
 
   auto min = duration_t{0};
@@ -170,7 +173,7 @@ void trip::interpolate() {
       it->min_ = min;
       it->min_idx_ = min_idx;
     } else {
-      min = it->max_;
+      min = it->max_;  // TODO max?
       min_idx = static_cast<unsigned>(&(*it) - &bounds.front()) / 2U;
     }
   }

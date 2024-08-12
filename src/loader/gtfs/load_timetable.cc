@@ -89,7 +89,7 @@ void load_timetable(loader_config const& config,
 }
 
 void load_timetable(loader_config const& config,
-                    source_idx_t const src,
+                    source_idx_t const src, /* Schedule index [0, 1, …] */
                     dir const& d,
                     timetable& tt,
                     hash_map<bitfield, bitfield_idx_t>& bitfield_indices,
@@ -149,6 +149,7 @@ void load_timetable(loader_config const& config,
 
   stop_seq_t stop_seq_cache;
   auto const get_stop_seq =
+    // ??? Reason for basic_string<> instead of vector<>
       [&](std::basic_string<gtfs_trip_idx_t> const& trips) {
         if (trips.size() == 1U) {
           return &trip_data.get(trips.front()).stop_seq_;
@@ -186,6 +187,8 @@ void load_timetable(loader_config const& config,
         auto const& trp = trip_data.get(t_idx);
         auto const stop_count = trp.stop_seq_.size();
         auto const offset = bikes_allowed_seq_cache.size();
+        // TODO Benefit of inserting same value (n-1) times
+        // Reminder: n-1: Last stop is exit only
         bikes_allowed_seq_cache.resize(
             static_cast<bitvec::size_type>(offset + stop_count - 1));
         for (auto j = 0U; j < stop_count - 1; ++j) {
@@ -317,7 +320,7 @@ void load_timetable(loader_config const& config,
 
             trp.transport_ranges_.emplace_back(
                 transport_range_t{tt.next_transport_idx(), {prev_end, end}});
-            prev_end = end - 1;
+            prev_end = end - 1u;
 
             auto const line =
                 utl::get_or_create(lines, trp.route_->short_name_, [&]() {

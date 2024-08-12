@@ -8,8 +8,8 @@
 namespace nigiri::loader::gtfs {
 
 timezone_idx_t get_tz_idx(timetable& tt,
-                          tz_map& timezones,
-                          std::string_view tz_name) {
+                          tz_map /*const*/& timezones,
+                          std::string_view const tz_name) {
   utl::verify(!tz_name.empty(), "timezone not set");
   return utl::get_or_create(timezones, tz_name, [&]() {
     return tt.locations_.register_timezone(timezone{
