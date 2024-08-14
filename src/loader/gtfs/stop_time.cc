@@ -39,7 +39,7 @@ void read_stop_times(timetable& tt,
   auto const timer = scoped_timer{"read stop times"};
   std::string last_trip_id;
   trip* last_trip = nullptr;
-  auto i = 1U;
+  auto line = 1U;
   auto const progress_tracker = utl::get_active_progress_tracker();
   progress_tracker->status("Read Stop Times")
       .out_bounds(45.F, 70.F)
@@ -50,7 +50,7 @@ void read_stop_times(timetable& tt,
       | utl::csv<csv_stop_time>()  //
       |
       utl::for_each([&](csv_stop_time const& s) {
-        ++i;
+        ++line;
 
         trip* t = nullptr;
         auto const t_id = s.trip_id_->view();
@@ -58,20 +58,20 @@ void read_stop_times(timetable& tt,
           t = last_trip;
         } else {
           if (last_trip != nullptr) {
-            last_trip->to_line_ = i - 1;
+            last_trip->to_line_ = line - 1;
           }
 
           auto const trip_it = trips.trips_.find(t_id);
           if (trip_it == end(trips.trips_)) {
             log(log_lvl::error, "loader.gtfs.stop_time",
-                "stop_times.txt:{} trip \"{}\" not found", i, t_id);
+                "stop_times.txt:{} trip \"{}\" not found", line, t_id);
             return;
           }
           t = &trips.data_[trip_it->second];
           last_trip_id = t_id;
           last_trip = t;
 
-          t->from_line_ = i;
+          t->from_line_ = line;  // Assumption: Stops are grouped by trip_id
         }
 
         try {
@@ -102,12 +102,13 @@ void read_stop_times(timetable& tt,
           }
         } catch (...) {
           log(log_lvl::error, "loader.gtfs.stop_time",
-              "stop_times.txt:{}: unknown stop \"{}\"", i, s.stop_id_->view());
+              "stop_times.txt:{}: unknown stop \"{}\"", line,
+              s.stop_id_->view());
         }
       });
 
   if (last_trip != nullptr) {
-    last_trip->to_line_ = i;
+    last_trip->to_line_ = line;
   }
 }
 

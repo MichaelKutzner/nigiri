@@ -245,6 +245,17 @@ clasz trip::get_clasz(timetable const& tt) const {
   }
 }
 
+// void trip::find_stops_in_shape(mm_vecvec<uint32_t, geo::latlng> const* const) {
+// // void trip::find_stops_in_shape(mm_vecvec<uint32_t, geo::latlng> const* const shape_vecvec) {
+//   if (shape_idx_ == shape_idx_t::invalid()) {
+//     return;
+//   }
+//   // auto const shape = shape_vecvec[shape_idx_.v_];
+//   // for (auto& stop: stop_seq_) {
+//   //   osr::distance_to_way(stop, shape);
+//   // }
+// }
+
 trip_direction_idx_t trip_data::get_or_create_direction(
     timetable& tt, std::string_view headsign) {
   return utl::get_or_create(directions_, headsign, [&]() {
@@ -389,5 +400,11 @@ void read_frequencies(trip_data& trips, std::string_view file_content) {
                          duration_t{headway_secs / 60}, schedule_relationship});
          });
 }
+
+// void add_shape_segments(trip_data& trips, mm_vecvec<uint32_t, geo::latlng> const* const shape_vecvec) {
+//   for (auto& trip: trips.data_) {
+//     trip.find_stops_in_shape(shape_vecvec);
+//   }
+// }
 
 }  // namespace nigiri::loader::gtfs

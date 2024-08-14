@@ -86,6 +86,7 @@ struct trip {
   std::string display_name(timetable const&) const;
 
   clasz get_clasz(timetable const&) const;
+  // void find_stops_in_shape(mm_vecvec<uint32_t, geo::latlng> const* const);
 
   route const* route_{nullptr};
   bitfield const* service_{nullptr};
@@ -132,5 +133,6 @@ trip_data read_trips(
     std::array<bool, kNumClasses> const& bikes_allowed_default);
 
 void read_frequencies(trip_data&, std::string_view);
+// void add_shape_segments(trip_data&, mm_vecvec<uint32_t, geo::latlng> const* const);
 
 }  // namespace nigiri::loader::gtfs
