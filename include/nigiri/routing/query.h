@@ -10,6 +10,7 @@
 #include "nigiri/routing/clasz_mask.h"
 #include "nigiri/routing/limits.h"
 #include "nigiri/routing/location_match_mode.h"
+#include "nigiri/routing/transfer_time_settings.h"
 #include "nigiri/types.h"
 
 namespace nigiri::routing {
@@ -32,6 +33,8 @@ struct offset {
     return a.duration_ < b.duration_;
   }
 
+  friend bool operator==(offset const&, offset const&) = default;
+
   location_idx_t target_;
   duration_t duration_;
   transport_mode_id_t transport_mode_id_;
@@ -40,6 +43,8 @@ struct offset {
 using start_time_t = std::variant<unixtime_t, interval<unixtime_t>>;
 
 struct query {
+  friend bool operator==(query const&, query const&) = default;
+
   start_time_t start_time_;
   location_match_mode start_match_mode_{
       nigiri::routing::location_match_mode::kExact};
@@ -55,6 +60,7 @@ struct query {
   profile_idx_t prf_idx_{0};
   clasz_mask_t allowed_claszes_{all_clasz_allowed()};
   bool require_bike_transport_{false};
+  transfer_time_settings transfer_time_settings_{};
 };
 
 }  // namespace nigiri::routing
