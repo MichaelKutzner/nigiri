@@ -171,9 +171,9 @@ TEST(gtfs, shapeRequest_singleTripWithShape_getFullShape) {
                     date::sys_days{2024_y / March / 2}};
   loader::register_special_stations(tt);
   auto local_bitfield_indices = hash_map<bitfield, bitfield_idx_t>{};
-  loader::gtfs::load_timetable({}, source_idx_t{1},
-                               loader::mem_dir::read(test_files_with_shapes),
-                               tt, local_bitfield_indices, &mmap.get_vecvec());
+  loader::gtfs::load_timetable(
+      {}, source_idx_t{1}, loader::mem_dir::read(test_files_with_shapes), tt,
+      local_bitfield_indices, nullptr, &mmap.get_vecvec());
   loader::finalize(tt);
 
   // Testing shape 'Last', used by 'Trip 3' (index == 2)
@@ -200,9 +200,9 @@ TEST(gtfs, shapeRequest_singleTripWithoutShape_getEmptyShape) {
                     date::sys_days{2024_y / March / 2}};
   loader::register_special_stations(tt);
   auto local_bitfield_indices = hash_map<bitfield, bitfield_idx_t>{};
-  loader::gtfs::load_timetable({}, source_idx_t{1},
-                               loader::mem_dir::read(test_files_with_shapes),
-                               tt, local_bitfield_indices, &mmap.get_vecvec());
+  loader::gtfs::load_timetable(
+      {}, source_idx_t{1}, loader::mem_dir::read(test_files_with_shapes), tt,
+      local_bitfield_indices, nullptr, &mmap.get_vecvec());
   loader::finalize(tt);
 
   // Testing trip without shape, i.e. 'Trip 4' (index == 3)
@@ -225,7 +225,7 @@ TEST(gtfs, shapeRequest_singleTripWithoutShape_getEmptyShape) {
 //   loader::gtfs::load_timetable({}, source_idx_t{0},
 //                                loader::mem_dir::read(test_files_with_shapes),
 //                                tt, local_bitfield_indices,
-//                                &mmap.get_vecvec());
+//                                nullptr, &mmap.get_vecvec());
 //   loader::finalize(tt);
 
 //   for (auto r : tt.route_section_shape_) {

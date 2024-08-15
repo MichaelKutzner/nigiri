@@ -20,6 +20,7 @@
 #include "nigiri/location.h"
 #include "nigiri/logging.h"
 #include "nigiri/stop.h"
+#include "nigiri/td_footpath.h"
 #include "nigiri/types.h"
 
 namespace nigiri {
@@ -167,7 +168,7 @@ struct timetable {
       std::basic_string<clasz> const& clasz_sections,
       std::vector<shape_idx_t> shape_indices,
       bitvec const& bikes_allowed_per_section) {
-    assert(!stop_seq.empty() && stop_seq.size() > 1U);
+    assert(stop_seq.size() > 1U);
     assert(!clasz_sections.empty());
 
     auto const idx = route_location_seq_.size();
