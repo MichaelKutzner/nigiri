@@ -13,4 +13,9 @@ geo::polyline get_shape(trip_idx_t trip_idx,
 
 geo::polyline get_shape(shape_idx_t const, shape_vecvec_t const&);
 
+std::vector<geo::polyline> get_shape_segments(trip_idx_t,
+                        timetable const&,
+                        geo::polyline const&,
+                        shape_vecvec_t const&);
+
 }  // namespace nigiri

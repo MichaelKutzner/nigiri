@@ -247,6 +247,46 @@ TEST(gtfs, shapeRequest_singleTripWithoutShape_getEmptyShape) {
   EXPECT_EQ(expected_shape, shape_by_shape_index);
 }
 
+TEST(gtfs, shapeRequest_requestShapePerLeg_getShapeSegments) {
+  auto mmap = loader::gtfs::shape_test_mmap{"shape-for-legs-test"};
+  auto& shape_data = mmap.get_shape_data();
+
+  auto tt = timetable{};
+
+  tt.date_range_ = {date::sys_days{2024_y / March / 1},
+                    date::sys_days{2024_y / March / 2}};
+  loader::register_special_stations(tt);
+    auto local_bitfield_indices = hash_map<bitfield, bitfield_idx_t>{};
+  loader::gtfs::load_timetable({}, source_idx_t{0},
+                               loader::mem_dir::read(test_files_with_shapes),
+                               tt, local_bitfield_indices,
+                               shape_data);
+  loader::finalize(tt);
+
+  auto const segments =
+      shape_data
+          .and_then([&tt](auto const& file) {
+            auto stops = geo::polyline{
+              {0.0f, 0.0f},
+              {2.0f, 0.0f},
+              {2.504f, 1.999f},
+              {3.0f, 4.0f},
+              {1.0f, 4.0f},
+            };
+            return std::make_optional(get_shape_segments(trip_idx_t{4}, tt, stops, file));
+          })
+          .value();
+
+  // A -> F
+  auto expected_segments = std::vector<geo::polyline>{
+    {{0.0f, 0.0f}, {2.0f, 0.0f}},
+    {{2.0f, 0.0f}, {2.504f, 1.999f}},
+    {{2.504f, 1.999f}, {3.0f, 4.0f}},
+    {{3.0f, 4.0f}, {1.0f, 4.0f}},
+  };
+  EXPECT_EQ(expected_segments, segments);
+}
+
 // TEST(gtfs, shapeRequest_routeWithShape_getFullShape) {
 //   auto mmap = loader::gtfs::shape_test_mmap{"shape-route-test"};
 //   auto& shape_data = mmap.get_shape_data();
@@ -273,6 +313,7 @@ TEST(gtfs, shapeRequest_singleTripWithoutShape_getEmptyShape) {
 //             return std::make_optional(get_shape(trip_idx_t{1}, tt, file));
 //           })
 
+//   // C -> M
 //   auto expected_shape = geo::polyline{
 //     {2.4f, 2.0f},
 //     {2.504f, 1.999f},
