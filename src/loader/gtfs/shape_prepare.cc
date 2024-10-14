@@ -1,6 +1,5 @@
 #include "nigiri/loader/gtfs/shape_prepare.h"
 
-#include <chrono>
 #include <algorithm>
 #include <ranges>
 #include <span>
@@ -30,8 +29,8 @@ std::size_t get_closest(geo::latlng const& pos,
              ? best.segment_idx_
              : best.segment_idx_ + 1;
 }
-std::pair<std::size_t, double> get_closest2(geo::latlng const& pos,
-                        std::span<geo::latlng const> shape) {
+std::pair<std::size_t, double> get_closest2(
+    geo::latlng const& pos, std::span<geo::latlng const> shape) {
   if (shape.size() < 2U) {
     return std::pair{0U, 0.0};
   }
@@ -53,7 +52,7 @@ std::vector<shape_offset_t> get_offsets_by_stops(
   }
 
   auto offsets = std::vector<shape_offset_t>(stop_seq.size());
-  auto remaining_start= cista::base_t<shape_offset_t>{1U};
+  auto remaining_start = cista::base_t<shape_offset_t>{1U};
   // Reserve space to map each stop to a different point
   auto max_width = shape.size() - stop_seq.size();
 
@@ -76,13 +75,6 @@ std::vector<shape_offset_t> get_offsets_by_stops(
 }
 
 struct offset_pair {
-  offset_pair next() const {
-    return {
-      stop_ + 1U,
-      shape_ + 1U
-    };
-  }
-  // std::size_t stop_;
   unsigned stop_;
   shape_offset_t shape_;
 };
@@ -90,30 +82,31 @@ struct offset_pair {
 struct best_fit {
   double distance_{0.0};
   shape_offset_t best_{shape_offset_t{0U}};
-  // offset_pair best_{0U, shape_offset_t{0U}};
 };
 
 void match_best_fit(auto& fits,
-    timetable const& tt,
-    std::span<geo::latlng const> shape,
-    stop_seq_t const& stop_seq,
-    offset_pair const& from,
-    offset_pair const& to
-) {
+                    timetable const& tt,
+                    std::span<geo::latlng const> shape,
+                    stop_seq_t const& stop_seq,
+                    offset_pair const& from,
+                    offset_pair const& to) {
   auto const segment_width = to.stop_ - from.stop_;
   if (segment_width < 2U) {
     return;
   }
-  auto const width = static_cast<unsigned>((to.shape_ - from.shape_) - (to.stop_ - from.stop_) + 1U);
+  auto const width = static_cast<unsigned>((to.shape_ - from.shape_) -
+                                           (to.stop_ - from.stop_) + 1U);
   auto const stop_offset = from.shape_ - from.stop_;
   auto min_dist = 0.0;
   auto min_pos = 0U;
-  for (auto stop_index = from.stop_ +1; stop_index < to.stop_; ++stop_index) {
+  for (auto stop_index = from.stop_ + 1; stop_index < to.stop_; ++stop_index) {
     auto& curr = fits[stop_index];
     auto const shape_offset = stop_index + stop_offset.v_;
     if (curr.best_ < shape_offset || curr.best_ >= shape_offset + width) {
-      auto const pos = tt.locations_.coordinates_[stop{stop_seq[stop_index]}.location_idx()];
-      auto const [offset, dist] = get_closest2(pos, shape.subspan(shape_offset, width));
+      auto const pos =
+          tt.locations_.coordinates_[stop{stop_seq[stop_index]}.location_idx()];
+      auto const [offset, dist] =
+          get_closest2(pos, shape.subspan(shape_offset, width));
       curr.distance_ = dist;
       curr.best_ = static_cast<shape_offset_t>(shape_offset + offset);
     }
@@ -125,7 +118,6 @@ void match_best_fit(auto& fits,
   auto const split_point = offset_pair{min_pos, fits[min_pos].best_};
   match_best_fit(fits, tt, shape, stop_seq, from, split_point);
   match_best_fit(fits, tt, shape, stop_seq, split_point, to);
-
 }
 
 std::vector<shape_offset_t> get_offsets_by_best_fit_stops(
@@ -133,15 +125,14 @@ std::vector<shape_offset_t> get_offsets_by_best_fit_stops(
     std::span<geo::latlng const> shape,
     stop_seq_t const& stop_seq) {
   auto best_fits = std::vector<best_fit>(stop_seq.size());
-  // best_fits.back() = best_fit{0.0, shape_offset_t{shape.size() - 1U}};
   best_fits.back() = best_fit{0.0, shape_offset_t{shape.size() - 1U}};
 
-  // match_best_fit(best_fits, tt, shape, {0U, shape_offset_t{1U}}, {static_cast<unsigned>(stop_seq.size() - 2U), shape_offset_t{stop_seq.size() - 2U}});
-  // match_best_fit(best_fits, tt, shape, {0U, shape_offset_t{1U}}, {static_cast<unsigned>(stop_seq.size() - 1U), shape_offset_t{stop_seq.size() - 1U}});
-  match_best_fit(best_fits, tt, shape, stop_seq, {0U, shape_offset_t{0U}}, {static_cast<unsigned>(stop_seq.size() - 1U), shape_offset_t{shape.size() - 1U}});
+  match_best_fit(best_fits, tt, shape, stop_seq, {0U, shape_offset_t{0U}},
+                 {static_cast<unsigned>(stop_seq.size() - 1U),
+                  shape_offset_t{shape.size() - 1U}});
 
   auto offsets = std::vector<shape_offset_t>(stop_seq.size());
-  for (auto [best, offset]: utl::zip(best_fits, offsets)) {
+  for (auto [best, offset] : utl::zip(best_fits, offsets)) {
     offset = best.best_;
   }
 
@@ -170,7 +161,6 @@ void calculate_shape_offsets(timetable const& tt,
                              shapes_storage& shapes_data,
                              vector_map<gtfs_trip_idx_t, trip> const& trips,
                              shape_loader_state const& shape_states) {
-  auto const start = std::chrono::high_resolution_clock::now();
   auto const progress_tracker = utl::get_active_progress_tracker();
   progress_tracker->status("Calculating shape offsets")
       .out_bounds(98.F, 100.F)
@@ -213,16 +203,13 @@ void calculate_shape_offsets(timetable const& tt,
           if (shape.size() < trip.stop_seq_.size()) {
             return shape_offset_idx_t::invalid();  // >= 1 shape/point required
           }
-          auto const offsets = get_offsets_by_best_fit_stops(tt, shape, trip.stop_seq_);
+          auto const offsets =
+              get_offsets_by_best_fit_stops(tt, shape, trip.stop_seq_);
           return shapes_data.add_offsets(offsets);
         });
     shapes_data.add_trip_shape_offsets(
         trip_idx, cista::pair{shape_idx, shape_offset_idx});
   }
-  auto const end = std::chrono::high_resolution_clock::now();
-  auto const duration =
-      std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-  std::cout << "Calculation took " << duration << "ms\n";
 }
 
 }  // namespace nigiri::loader::gtfs
