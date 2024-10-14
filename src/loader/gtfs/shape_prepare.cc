@@ -26,10 +26,21 @@ std::size_t get_closest(geo::latlng const& pos,
   auto const best = geo::distance_to_polyline(pos, shape);
   auto const from = shape[best.segment_idx_];
   auto const to = shape[best.segment_idx_ + 1];
-  std::cout << "GC: " << pos << ", " << from << ", " << to << ", " << best.segment_idx_ << "\n";
   return geo::distance(pos, from) <= geo::distance(pos, to)
              ? best.segment_idx_
              : best.segment_idx_ + 1;
+}
+std::pair<std::size_t, double> get_closest2(geo::latlng const& pos,
+                        std::span<geo::latlng const> shape) {
+  if (shape.size() < 2U) {
+    return std::pair{0U, 0.0};
+  }
+  auto const best = geo::distance_to_polyline(pos, shape);
+  auto const from = shape[best.segment_idx_];
+  auto const to = shape[best.segment_idx_ + 1];
+  return geo::distance(pos, from) <= geo::distance(pos, to)
+             ? std::pair{best.segment_idx_, best.distance_to_polyline_}
+             : std::pair{best.segment_idx_ + 1, best.distance_to_polyline_};
 }
 
 std::vector<shape_offset_t> get_offsets_by_stops(
@@ -89,33 +100,28 @@ void match_best_fit(auto& fits,
     offset_pair const& from,
     offset_pair const& to
 ) {
-  std::cout << "START: " << from.stop_ << " -> " << to.stop_ << "\n";
   auto const segment_width = to.stop_ - from.stop_;
   if (segment_width < 2U) {
     return;
   }
   auto const width = static_cast<unsigned>((to.shape_ - from.shape_) - (to.stop_ - from.stop_) + 1U);
-  std::cout << from.stop_ << " / " << from.shape_ << " -> " << to.stop_ << " / " << to.shape_ << " // " << width << "\n";
   auto const stop_offset = from.shape_ - from.stop_;
   auto min_dist = 0.0;
   auto min_pos = 0U;
   for (auto stop_index = from.stop_ +1; stop_index < to.stop_; ++stop_index) {
     auto& curr = fits[stop_index];
     auto const shape_offset = stop_index + stop_offset.v_;
-    std::cout << "Testing: " << stop_index << ": " << shape_offset << " + " << width << " / Best: " << curr.best_ << "\n";
     if (curr.best_ < shape_offset || curr.best_ >= shape_offset + width) {
       auto const pos = tt.locations_.coordinates_[stop{stop_seq[stop_index]}.location_idx()];
-      auto const offset = get_closest(pos, shape.subspan(shape_offset, width));
+      auto const [offset, dist] = get_closest2(pos, shape.subspan(shape_offset, width));
+      curr.distance_ = dist;
       curr.best_ = static_cast<shape_offset_t>(shape_offset + offset);
-      curr.distance_ = geo::distance(pos, shape[curr.best_.v_]);
-      std::cout << "Updated: " << pos << ": " << curr.best_ << " / " <<curr.distance_ << " | Closest: " << shape[curr.best_.v_] << " offs: " << offset << "\n";
     }
     if (min_pos == 0 || min_dist > curr.distance_) {
       min_dist = curr.distance_;
       min_pos = stop_index;
     }
   }
-  std::cout << "Best: " << min_pos << ": " << min_dist << "\n";
   auto const split_point = offset_pair{min_pos, fits[min_pos].best_};
   match_best_fit(fits, tt, shape, stop_seq, from, split_point);
   match_best_fit(fits, tt, shape, stop_seq, split_point, to);
@@ -136,10 +142,8 @@ std::vector<shape_offset_t> get_offsets_by_best_fit_stops(
 
   auto offsets = std::vector<shape_offset_t>(stop_seq.size());
   for (auto [best, offset]: utl::zip(best_fits, offsets)) {
-    // auto& [best, offset]  = lr;
     offset = best.best_;
   }
-  // std::cout << offsets << "\n";
 
   return offsets;
 }
@@ -210,9 +214,6 @@ void calculate_shape_offsets(timetable const& tt,
             return shape_offset_idx_t::invalid();  // >= 1 shape/point required
           }
           auto const offsets = get_offsets_by_best_fit_stops(tt, shape, trip.stop_seq_);
-          auto const offsets2 = get_offsets_by_stops(tt, shape, trip.stop_seq_);
-          std::cout << "NEW OFFSETS(NEW): " << offsets << "\n";
-          std::cout << "NEW OFFSETS(OLD): " << offsets2 << "\n";
           return shapes_data.add_offsets(offsets);
         });
     shapes_data.add_trip_shape_offsets(
