@@ -1,5 +1,6 @@
 #include "nigiri/loader/gtfs/shape_prepare.h"
 
+#include <chrono>
 #include <algorithm>
 #include <ranges>
 #include <span>
@@ -25,6 +26,7 @@ std::size_t get_closest(geo::latlng const& pos,
   auto const best = geo::distance_to_polyline(pos, shape);
   auto const from = shape[best.segment_idx_];
   auto const to = shape[best.segment_idx_ + 1];
+  std::cout << "GC: " << pos << ", " << from << ", " << to << ", " << best.segment_idx_ << "\n";
   return geo::distance(pos, from) <= geo::distance(pos, to)
              ? best.segment_idx_
              : best.segment_idx_ + 1;
@@ -40,7 +42,7 @@ std::vector<shape_offset_t> get_offsets_by_stops(
   }
 
   auto offsets = std::vector<shape_offset_t>(stop_seq.size());
-  auto remaining_start = cista::base_t<shape_offset_t>{1U};
+  auto remaining_start= cista::base_t<shape_offset_t>{1U};
   // Reserve space to map each stop to a different point
   auto max_width = shape.size() - stop_seq.size();
 
@@ -58,6 +60,86 @@ std::vector<shape_offset_t> get_offsets_by_stops(
       max_width -= offset;
     }
   }
+
+  return offsets;
+}
+
+struct offset_pair {
+  offset_pair next() const {
+    return {
+      stop_ + 1U,
+      shape_ + 1U
+    };
+  }
+  // std::size_t stop_;
+  unsigned stop_;
+  shape_offset_t shape_;
+};
+
+struct best_fit {
+  double distance_{0.0};
+  shape_offset_t best_{shape_offset_t{0U}};
+  // offset_pair best_{0U, shape_offset_t{0U}};
+};
+
+void match_best_fit(auto& fits,
+    timetable const& tt,
+    std::span<geo::latlng const> shape,
+    stop_seq_t const& stop_seq,
+    offset_pair const& from,
+    offset_pair const& to
+) {
+  std::cout << "START: " << from.stop_ << " -> " << to.stop_ << "\n";
+  auto const segment_width = to.stop_ - from.stop_;
+  if (segment_width < 2U) {
+    return;
+  }
+  auto const width = static_cast<unsigned>((to.shape_ - from.shape_) - (to.stop_ - from.stop_) + 1U);
+  std::cout << from.stop_ << " / " << from.shape_ << " -> " << to.stop_ << " / " << to.shape_ << " // " << width << "\n";
+  auto const stop_offset = from.shape_ - from.stop_;
+  auto min_dist = 0.0;
+  auto min_pos = 0U;
+  for (auto stop_index = from.stop_ +1; stop_index < to.stop_; ++stop_index) {
+    auto& curr = fits[stop_index];
+    auto const shape_offset = stop_index + stop_offset.v_;
+    std::cout << "Testing: " << stop_index << ": " << shape_offset << " + " << width << " / Best: " << curr.best_ << "\n";
+    if (curr.best_ < shape_offset || curr.best_ >= shape_offset + width) {
+      auto const pos = tt.locations_.coordinates_[stop{stop_seq[stop_index]}.location_idx()];
+      auto const offset = get_closest(pos, shape.subspan(shape_offset, width));
+      curr.best_ = static_cast<shape_offset_t>(shape_offset + offset);
+      curr.distance_ = geo::distance(pos, shape[curr.best_.v_]);
+      std::cout << "Updated: " << pos << ": " << curr.best_ << " / " <<curr.distance_ << " | Closest: " << shape[curr.best_.v_] << " offs: " << offset << "\n";
+    }
+    if (min_pos == 0 || min_dist > curr.distance_) {
+      min_dist = curr.distance_;
+      min_pos = stop_index;
+    }
+  }
+  std::cout << "Best: " << min_pos << ": " << min_dist << "\n";
+  auto const split_point = offset_pair{min_pos, fits[min_pos].best_};
+  match_best_fit(fits, tt, shape, stop_seq, from, split_point);
+  match_best_fit(fits, tt, shape, stop_seq, split_point, to);
+
+}
+
+std::vector<shape_offset_t> get_offsets_by_best_fit_stops(
+    timetable const& tt,
+    std::span<geo::latlng const> shape,
+    stop_seq_t const& stop_seq) {
+  auto best_fits = std::vector<best_fit>(stop_seq.size());
+  // best_fits.back() = best_fit{0.0, shape_offset_t{shape.size() - 1U}};
+  best_fits.back() = best_fit{0.0, shape_offset_t{shape.size() - 1U}};
+
+  // match_best_fit(best_fits, tt, shape, {0U, shape_offset_t{1U}}, {static_cast<unsigned>(stop_seq.size() - 2U), shape_offset_t{stop_seq.size() - 2U}});
+  // match_best_fit(best_fits, tt, shape, {0U, shape_offset_t{1U}}, {static_cast<unsigned>(stop_seq.size() - 1U), shape_offset_t{stop_seq.size() - 1U}});
+  match_best_fit(best_fits, tt, shape, stop_seq, {0U, shape_offset_t{0U}}, {static_cast<unsigned>(stop_seq.size() - 1U), shape_offset_t{shape.size() - 1U}});
+
+  auto offsets = std::vector<shape_offset_t>(stop_seq.size());
+  for (auto [best, offset]: utl::zip(best_fits, offsets)) {
+    // auto& [best, offset]  = lr;
+    offset = best.best_;
+  }
+  // std::cout << offsets << "\n";
 
   return offsets;
 }
@@ -84,6 +166,7 @@ void calculate_shape_offsets(timetable const& tt,
                              shapes_storage& shapes_data,
                              vector_map<gtfs_trip_idx_t, trip> const& trips,
                              shape_loader_state const& shape_states) {
+  auto const start = std::chrono::high_resolution_clock::now();
   auto const progress_tracker = utl::get_active_progress_tracker();
   progress_tracker->status("Calculating shape offsets")
       .out_bounds(98.F, 100.F)
@@ -123,12 +206,22 @@ void calculate_shape_offsets(timetable const& tt,
             return shapes_data.add_offsets(offsets);
           }
           auto const shape = shapes_data.get_shape(shape_idx);
-          auto const offsets = get_offsets_by_stops(tt, shape, trip.stop_seq_);
+          if (shape.size() < trip.stop_seq_.size()) {
+            return shape_offset_idx_t::invalid();  // >= 1 shape/point required
+          }
+          auto const offsets = get_offsets_by_best_fit_stops(tt, shape, trip.stop_seq_);
+          auto const offsets2 = get_offsets_by_stops(tt, shape, trip.stop_seq_);
+          std::cout << "NEW OFFSETS(NEW): " << offsets << "\n";
+          std::cout << "NEW OFFSETS(OLD): " << offsets2 << "\n";
           return shapes_data.add_offsets(offsets);
         });
     shapes_data.add_trip_shape_offsets(
         trip_idx, cista::pair{shape_idx, shape_offset_idx});
   }
+  auto const end = std::chrono::high_resolution_clock::now();
+  auto const duration =
+      std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  std::cout << "Calculation took " << duration << "ms\n";
 }
 
 }  // namespace nigiri::loader::gtfs
