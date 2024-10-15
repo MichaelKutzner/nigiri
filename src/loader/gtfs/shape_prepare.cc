@@ -88,12 +88,6 @@ std::vector<shape_offset_t> get_offsets_by_stops(
     std::span<geo::latlng const> shape,
     stop_seq_t const& stop_seq,
     shape_matching_algorithm const algorithm) {
-  // TODO Remove?
-  // Need at least 1 shape point per stop
-  if (shape.size() < stop_seq.size()) {
-    return {};
-  }
-
   auto offsets = std::vector<shape_offset_t>(stop_seq.size());
 
   switch (algorithm) {
@@ -206,7 +200,10 @@ void calculate_shape_offsets(timetable const& tt,
           return shapes_data.add_offsets(offsets);
         });
     shapes_data.add_trip_shape_offsets(
-        trip_idx, cista::pair{shape_idx, shape_offset_idx});
+        trip_idx, cista::pair{shape_offset_idx == shape_offset_idx_t::invalid()
+                                  ? shape_idx_t::invalid()
+                                  : shape_idx,
+                              shape_offset_idx});
   }
 }
 
