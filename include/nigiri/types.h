@@ -316,6 +316,11 @@ enum class direction {
   kBackward  // start = final arrival, destination = journey departure
 };
 
+enum class shape_matching_algorithm {
+  kBestFitLinear,
+  kMinimalDistanceGlobal,
+};
+
 inline constexpr direction flip(direction const d) noexcept {
   return d == direction::kForward ? direction::kBackward : direction::kForward;
 }

@@ -17,19 +17,9 @@
 
 namespace nigiri::loader::gtfs {
 
-std::size_t get_closest(geo::latlng const& pos,
-                        std::span<geo::latlng const> shape) {
-  if (shape.size() < 2U) {
-    return 0U;
-  }
-  auto const best = geo::distance_to_polyline(pos, shape);
-  auto const from = shape[best.segment_idx_];
-  auto const to = shape[best.segment_idx_ + 1];
-  return geo::distance(pos, from) <= geo::distance(pos, to)
-             ? best.segment_idx_
-             : best.segment_idx_ + 1;
-}
-std::pair<std::size_t, double> get_closest2(
+using distance = double;
+
+std::pair<std::size_t, distance> get_closest(
     geo::latlng const& pos, std::span<geo::latlng const> shape) {
   if (shape.size() < 2U) {
     return std::pair{0U, 0.0};
@@ -42,98 +32,104 @@ std::pair<std::size_t, double> get_closest2(
              : std::pair{best.segment_idx_ + 1, best.distance_to_polyline_};
 }
 
+struct matching_candidate {
+  unsigned stop_idx_;
+  shape_offset_t shape_offset_;
+};
+
+struct best_fit {
+  distance distance_{0.0};
+  shape_offset_t candidate_{shape_offset_t{0U}};
+};
+
+void match_stops_segment(auto& fits,
+                         timetable const& tt,
+                         std::span<geo::latlng const> shape,
+                         stop_seq_t const& stop_seq,
+                         matching_candidate const& from,
+                         matching_candidate const& to) {
+  auto const segment_width = to.stop_idx_ - from.stop_idx_;
+  // Match on exclusive interval ]from.stop_idx_, to.stop_idx_[
+  if (segment_width < 2U) {
+    return;
+  }
+  auto const shape_width =
+      static_cast<unsigned>((to.shape_offset_ - from.shape_offset_) -
+                            (to.stop_idx_ - from.stop_idx_) + 1U);
+  auto const offset_adjustment = from.shape_offset_ - from.stop_idx_;
+  auto min_dist = 0.0;
+  auto min_pos = 0U;
+  for (auto stop_idx = from.stop_idx_ + 1; stop_idx < to.stop_idx_;
+       ++stop_idx) {
+    auto& curr = fits[stop_idx];
+    auto const shape_offset = stop_idx + offset_adjustment.v_;
+    if (curr.candidate_ < shape_offset ||
+        curr.candidate_ >= shape_offset + shape_width) {
+      auto const& pos =
+          tt.locations_.coordinates_[stop{stop_seq[stop_idx]}.location_idx()];
+      auto const [offset, dist] =
+          get_closest(pos, shape.subspan(shape_offset, shape_width));
+      curr.distance_ = dist;
+      curr.candidate_ = static_cast<shape_offset_t>(shape_offset + offset);
+    }
+    if (min_dist > curr.distance_ || min_pos == 0) {
+      min_dist = curr.distance_;
+      min_pos = stop_idx;
+    }
+  }
+  auto const split_point =
+      matching_candidate{min_pos, fits[min_pos].candidate_};
+  match_stops_segment(fits, tt, shape, stop_seq, from, split_point);
+  match_stops_segment(fits, tt, shape, stop_seq, split_point, to);
+}
+
 std::vector<shape_offset_t> get_offsets_by_stops(
     timetable const& tt,
     std::span<geo::latlng const> shape,
-    stop_seq_t const& stop_seq) {
+    stop_seq_t const& stop_seq,
+    shape_matching_algorithm const algorithm) {
+  // TODO Remove?
   // Need at least 1 shape point per stop
   if (shape.size() < stop_seq.size()) {
     return {};
   }
 
   auto offsets = std::vector<shape_offset_t>(stop_seq.size());
-  auto remaining_start = cista::base_t<shape_offset_t>{1U};
-  // Reserve space to map each stop to a different point
-  auto max_width = shape.size() - stop_seq.size();
 
-  for (auto const [i, s] : utl::enumerate(stop_seq)) {
-    if (i == 0U) {
-      offsets[0] = shape_offset_t{0U};
-    } else if (i == stop_seq.size() - 1U) {
-      offsets[i] = shape_offset_t{shape.size() - 1U};
-    } else {
-      auto const pos = tt.locations_.coordinates_[stop{s}.location_idx()];
-      auto const offset =
-          get_closest(pos, shape.subspan(remaining_start, max_width + 1U));
-      offsets[i] = shape_offset_t{remaining_start + offset};
-      remaining_start += offset + 1U;
-      max_width -= offset;
-    }
-  }
+  switch (algorithm) {
+    case shape_matching_algorithm::kBestFitLinear: {
+      auto remaining_start = cista::base_t<shape_offset_t>{1U};
+      // Reserve space to map each stop to a different point
+      auto max_width = shape.size() - stop_seq.size();
 
-  return offsets;
-}
+      for (auto const [i, s] : utl::enumerate(stop_seq)) {
+        if (i == 0U) {
+          offsets[0] = shape_offset_t{0U};
+        } else if (i == stop_seq.size() - 1U) {
+          offsets[i] = shape_offset_t{shape.size() - 1U};
+        } else {
+          auto const pos = tt.locations_.coordinates_[stop{s}.location_idx()];
+          auto const offset = std::get<0>(
+              get_closest(pos, shape.subspan(remaining_start, max_width + 1U)));
+          offsets[i] = shape_offset_t{remaining_start + offset};
+          remaining_start += offset + 1U;
+          max_width -= offset;
+        }
+      }
+    } break;
+    case shape_matching_algorithm::kMinimalDistanceGlobal: {
+      auto best_fits = std::vector<best_fit>(stop_seq.size());
+      best_fits.back() = best_fit{0.0, shape_offset_t{shape.size() - 1U}};
 
-struct offset_pair {
-  unsigned stop_;
-  shape_offset_t shape_;
-};
+      match_stops_segment(best_fits, tt, shape, stop_seq,
+                          {0U, shape_offset_t{0U}},
+                          {static_cast<unsigned>(stop_seq.size() - 1U),
+                           shape_offset_t{shape.size() - 1U}});
 
-struct best_fit {
-  double distance_{0.0};
-  shape_offset_t best_{shape_offset_t{0U}};
-};
-
-void match_best_fit(auto& fits,
-                    timetable const& tt,
-                    std::span<geo::latlng const> shape,
-                    stop_seq_t const& stop_seq,
-                    offset_pair const& from,
-                    offset_pair const& to) {
-  auto const segment_width = to.stop_ - from.stop_;
-  if (segment_width < 2U) {
-    return;
-  }
-  auto const width = static_cast<unsigned>((to.shape_ - from.shape_) -
-                                           (to.stop_ - from.stop_) + 1U);
-  auto const stop_offset = from.shape_ - from.stop_;
-  auto min_dist = 0.0;
-  auto min_pos = 0U;
-  for (auto stop_index = from.stop_ + 1; stop_index < to.stop_; ++stop_index) {
-    auto& curr = fits[stop_index];
-    auto const shape_offset = stop_index + stop_offset.v_;
-    if (curr.best_ < shape_offset || curr.best_ >= shape_offset + width) {
-      auto const pos =
-          tt.locations_.coordinates_[stop{stop_seq[stop_index]}.location_idx()];
-      auto const [offset, dist] =
-          get_closest2(pos, shape.subspan(shape_offset, width));
-      curr.distance_ = dist;
-      curr.best_ = static_cast<shape_offset_t>(shape_offset + offset);
-    }
-    if (min_pos == 0 || min_dist > curr.distance_) {
-      min_dist = curr.distance_;
-      min_pos = stop_index;
-    }
-  }
-  auto const split_point = offset_pair{min_pos, fits[min_pos].best_};
-  match_best_fit(fits, tt, shape, stop_seq, from, split_point);
-  match_best_fit(fits, tt, shape, stop_seq, split_point, to);
-}
-
-std::vector<shape_offset_t> get_offsets_by_best_fit_stops(
-    timetable const& tt,
-    std::span<geo::latlng const> shape,
-    stop_seq_t const& stop_seq) {
-  auto best_fits = std::vector<best_fit>(stop_seq.size());
-  best_fits.back() = best_fit{0.0, shape_offset_t{shape.size() - 1U}};
-
-  match_best_fit(best_fits, tt, shape, stop_seq, {0U, shape_offset_t{0U}},
-                 {static_cast<unsigned>(stop_seq.size() - 1U),
-                  shape_offset_t{shape.size() - 1U}});
-
-  auto offsets = std::vector<shape_offset_t>(stop_seq.size());
-  for (auto [best, offset] : utl::zip(best_fits, offsets)) {
-    offset = best.best_;
+      for (auto [best, offset] : utl::zip(best_fits, offsets)) {
+        offset = best.candidate_;
+      }
+    } break;
   }
 
   return offsets;
@@ -161,6 +157,8 @@ void calculate_shape_offsets(timetable const& tt,
                              shapes_storage& shapes_data,
                              vector_map<gtfs_trip_idx_t, trip> const& trips,
                              shape_loader_state const& shape_states) {
+  // auto const algorithm = shape_matching_algorithm::kMinimalDistanceGlobal;
+  auto const algorithm = shape_matching_algorithm::kBestFitLinear;
   auto const progress_tracker = utl::get_active_progress_tracker();
   progress_tracker->status("Calculating shape offsets")
       .out_bounds(98.F, 100.F)
@@ -204,7 +202,7 @@ void calculate_shape_offsets(timetable const& tt,
             return shape_offset_idx_t::invalid();  // >= 1 shape/point required
           }
           auto const offsets =
-              get_offsets_by_best_fit_stops(tt, shape, trip.stop_seq_);
+              get_offsets_by_stops(tt, shape, trip.stop_seq_, algorithm);
           return shapes_data.add_offsets(offsets);
         });
     shapes_data.add_trip_shape_offsets(
