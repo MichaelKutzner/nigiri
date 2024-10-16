@@ -53,7 +53,7 @@ void match_stops_segment(auto& fits,
   if (segment_width < 2U) {
     return;
   }
-  auto const shape_width =
+  auto const candidates_width =
       static_cast<unsigned>((to.shape_offset_ - from.shape_offset_) -
                             (to.stop_idx_ - from.stop_idx_) + 1U);
   auto const offset_adjustment = from.shape_offset_ - from.stop_idx_;
@@ -64,11 +64,11 @@ void match_stops_segment(auto& fits,
     auto& curr = fits[stop_idx];
     auto const shape_offset = stop_idx + offset_adjustment.v_;
     if (curr.candidate_ < shape_offset ||
-        curr.candidate_ >= shape_offset + shape_width) {
+        curr.candidate_ >= shape_offset + candidates_width) {
       auto const& pos =
           tt.locations_.coordinates_[stop{stop_seq[stop_idx]}.location_idx()];
       auto const [offset, dist] =
-          get_closest(pos, shape.subspan(shape_offset, shape_width));
+          get_closest(pos, shape.subspan(shape_offset, candidates_width));
       curr.distance_ = dist;
       curr.candidate_ = static_cast<shape_offset_t>(shape_offset + offset);
     }
@@ -83,21 +83,30 @@ void match_stops_segment(auto& fits,
   match_stops_segment(fits, tt, shape, stop_seq, split_point, to);
 }
 
-void match_center(std::vector<shape_offset_t>& offsets, timetable const& tt, std::span<geo::latlng const> shape, stop_seq_t const& stop_seq, matching_candidate const& before, matching_candidate const& after) {
-  auto const width = after.stop_idx_ - before.stop_idx_;
-  if (width < 2U) {
+void bisect_match_interior_stops(std::vector<shape_offset_t>& offsets,
+                                 timetable const& tt,
+                                 std::span<geo::latlng const> shape,
+                                 stop_seq_t const& stop_seq,
+                                 matching_candidate const& from,
+                                 matching_candidate const& to) {
+  auto const segment_width = to.stop_idx_ - from.stop_idx_;
+  if (segment_width < 2U) {
     return;
   }
-  auto const offset = width / 2;
-  auto const center = before.stop_idx_ + offset;
-  auto const shape_width = static_cast<unsigned>((after.shape_offset_ - before.shape_offset_) - width + 1U);
-  auto const pos = tt.locations_.coordinates_[stop{stop_seq[center]}.location_idx()];
-  auto const shape_offset = std::get<0>(
-      get_closest(pos, shape.subspan(before.shape_offset_.v_ + offset, shape_width)));
-  offsets[center] = static_cast<shape_offset_t>(before.shape_offset_.v_ + offset + shape_offset);
-  auto const middle = matching_candidate{center, offsets[center]};
-  match_center(offsets, tt, shape, stop_seq, before, middle);
-  match_center(offsets, tt, shape, stop_seq, middle, after);
+  auto const segment_offset = segment_width / 2;
+  auto const segment_center = from.stop_idx_ + segment_offset;
+  auto const shape_offset = from.shape_offset_.v_ + segment_offset;
+  auto const candidates_width = static_cast<unsigned>(
+      (to.shape_offset_ - from.shape_offset_) - segment_width + 1U);
+  auto const pos =
+      tt.locations_.coordinates_[stop{stop_seq[segment_center]}.location_idx()];
+  auto const offset = static_cast<shape_offset_t>(
+      shape_offset + std::get<0>(get_closest(
+                         pos, shape.subspan(shape_offset, candidates_width))));
+  offsets[segment_center] = offset;
+  auto const middle_point = matching_candidate{segment_center, offset};
+  bisect_match_interior_stops(offsets, tt, shape, stop_seq, from, middle_point);
+  bisect_match_interior_stops(offsets, tt, shape, stop_seq, middle_point, to);
 }
 
 std::vector<shape_offset_t> get_offsets_by_stops(
@@ -141,11 +150,11 @@ std::vector<shape_offset_t> get_offsets_by_stops(
         offset = best.candidate_;
       }
     } break;
-    case shape_matching_algorithm::kMinimumRuntime: {
+    case shape_matching_algorithm::kBisectSegments: {
       offsets.back() = shape_offset_t{shape.size() - 1U};
-      match_center(offsets, tt, shape, stop_seq,
-                          {0U, shape_offset_t{0U}},
-                          {static_cast<unsigned>(stop_seq.size() - 1U), offsets.back()});
+      bisect_match_interior_stops(
+          offsets, tt, shape, stop_seq, {0U, shape_offset_t{0U}},
+          {static_cast<unsigned>(stop_seq.size() - 1U), offsets.back()});
     } break;
   }
 

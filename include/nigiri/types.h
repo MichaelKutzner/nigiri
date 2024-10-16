@@ -320,7 +320,7 @@ enum class direction {
 enum class shape_matching_algorithm {
   kBestFitLinear,
   kMinimalDistanceGlobal,
-  kMinimumRuntime,
+  kBisectSegments,
 };
 
 inline constexpr direction flip(direction const d) noexcept {
