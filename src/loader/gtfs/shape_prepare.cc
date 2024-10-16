@@ -83,6 +83,23 @@ void match_stops_segment(auto& fits,
   match_stops_segment(fits, tt, shape, stop_seq, split_point, to);
 }
 
+void match_center(std::vector<shape_offset_t>& offsets, timetable const& tt, std::span<geo::latlng const> shape, stop_seq_t const& stop_seq, matching_candidate const& before, matching_candidate const& after) {
+  auto const width = after.stop_idx_ - before.stop_idx_;
+  if (width < 2U) {
+    return;
+  }
+  auto const offset = width / 2;
+  auto const center = before.stop_idx_ + offset;
+  auto const shape_width = static_cast<unsigned>((after.shape_offset_ - before.shape_offset_) - width + 1U);
+  auto const pos = tt.locations_.coordinates_[stop{stop_seq[center]}.location_idx()];
+  auto const shape_offset = std::get<0>(
+      get_closest(pos, shape.subspan(before.shape_offset_.v_ + offset, shape_width)));
+  offsets[center] = static_cast<shape_offset_t>(before.shape_offset_.v_ + offset + shape_offset);
+  auto const middle = matching_candidate{center, offsets[center]};
+  match_center(offsets, tt, shape, stop_seq, before, middle);
+  match_center(offsets, tt, shape, stop_seq, middle, after);
+}
+
 std::vector<shape_offset_t> get_offsets_by_stops(
     timetable const& tt,
     std::span<geo::latlng const> shape,
@@ -123,6 +140,12 @@ std::vector<shape_offset_t> get_offsets_by_stops(
       for (auto [best, offset] : utl::zip(best_fits, offsets)) {
         offset = best.candidate_;
       }
+    } break;
+    case shape_matching_algorithm::kMinimumRuntime: {
+      offsets.back() = shape_offset_t{shape.size() - 1U};
+      match_center(offsets, tt, shape, stop_seq,
+                          {0U, shape_offset_t{0U}},
+                          {static_cast<unsigned>(stop_seq.size() - 1U), offsets.back()});
     } break;
   }
 
