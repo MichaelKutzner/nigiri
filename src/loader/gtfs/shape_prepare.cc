@@ -1,6 +1,7 @@
 #include "nigiri/loader/gtfs/shape_prepare.h"
 
 #include <algorithm>
+#include <chrono>
 #include <ranges>
 #include <span>
 #include <type_traits>
@@ -11,6 +12,7 @@
 #include "utl/enumerate.h"
 #include "utl/get_or_create.h"
 #include "utl/progress_tracker.h"
+#include "utl/zip.h"
 
 #include "nigiri/stop.h"
 #include "nigiri/types.h"
@@ -179,12 +181,24 @@ std::vector<shape_offset_t> get_offsets_by_dist_traveled(
   return offsets;
 }
 
+double dist_sum(auto const& offsets, stop_seq_t const& stops, timetable const& tt, auto const& shape) {
+  double sum = 0.0;
+  for (auto const& [offset, s] : utl::zip(offsets, stops)) {
+    auto const a = tt.locations_.coordinates_[stop{s}.location_idx()];
+    auto const b = shape[offset.v_];
+    sum += geo::distance(a, b);
+  }
+  return sum;
+}
+
 void calculate_shape_offsets(timetable const& tt,
                              shapes_storage& shapes_data,
                              vector_map<gtfs_trip_idx_t, trip> const& trips,
                              shape_loader_state const& shape_states) {
+  // auto const start = std::chrono::high_resolution_clock::now();
   // auto const algorithm = shape_matching_algorithm::kMinimalDistanceGlobal;
-  auto const algorithm = shape_matching_algorithm::kBestFitLinear;
+  // auto const algorithm = shape_matching_algorithm::kBestFitLinear;
+  auto const algorithm = shape_matching_algorithm::kBisectSegments;
   auto const progress_tracker = utl::get_active_progress_tracker();
   progress_tracker->status("Calculating shape offsets")
       .out_bounds(98.F, 100.F)
@@ -229,6 +243,28 @@ void calculate_shape_offsets(timetable const& tt,
           }
           auto const offsets =
               get_offsets_by_stops(tt, shape, trip.stop_seq_, algorithm);
+    //       auto const offsets2 =
+    //           get_offsets_by_stops(tt, shape, trip.stop_seq_, shape_matching_algorithm::kMinimalDistanceGlobal);
+    //       auto const offsets3 =
+    //           get_offsets_by_stops(tt, shape, trip.stop_seq_, shape_matching_algorithm::kBisectSegments);
+    //       std::cerr << std::format("{},{},{},{},{}\n",
+    //         shape_idx.v_,
+    //         trip.stop_seq_.size(),
+    //         dist_sum(offsets, trip.stop_seq_, tt, shape),
+    //         dist_sum(offsets2, trip.stop_seq_, tt, shape),
+    //         dist_sum(offsets3, trip.stop_seq_, tt, shape)
+    //       );
+    //       if (shape_idx == 61879) {
+    //         std::cout << trip.display_name(tt) << "\n";
+
+    //         auto const a = tt.locations_.get(stop{trip.stop_seq_.front()}.location_idx()).name_;
+    //         auto const b = tt.locations_.get(stop{trip.stop_seq_.back()}.location_idx()).name_;
+    // // auto const a = tt.locations_.coordinates_[];
+    // std::cout << a << " -> " << b << "\n";
+    // // auto const a = tt.locations_.coordinates_[stop{trip.stop_seq_.front()}];
+    //         std::cout << "OFFSETS: " << offsets << " / " << offsets2 << " / " << offsets3 << "\n";
+    //         std::cout << "DONE\n\n\n\n\n\n";
+    //       }
           return shapes_data.add_offsets(offsets);
         });
     shapes_data.add_trip_shape_offsets(
@@ -237,6 +273,9 @@ void calculate_shape_offsets(timetable const& tt,
                                   : shape_idx,
                               shape_offset_idx});
   }
+  // auto const end = std::chrono::high_resolution_clock::now();
+  // auto const duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  // std::cout << "Calculation took " << duration << "\n";
 }
 
 }  // namespace nigiri::loader::gtfs
