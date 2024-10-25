@@ -44,9 +44,10 @@ shape_loader_state parse_shapes(std::string_view const data,
       .in_high(data.size());
   utl::line_range{utl::make_buf_reader(data, progress_tracker->update_fn())}  //
       | utl::csv<shape_entry>()  //
-      | utl::for_each([&points, &point_seq, &distances, &ordering_required, index_offset, &lookup](shape_entry const entry) {
+      | utl::for_each([&](shape_entry const entry) {
           auto const shape_idx = lookup(entry.id_->view(), [&] {
-            auto const idx = static_cast<shape_idx_t>(points.size() + cista::to_idx(index_offset));
+            auto const idx = static_cast<shape_idx_t>(
+                points.size() + cista::to_idx(index_offset));
             points.push_back({});
             point_seq.push_back({});
             distances.push_back({});
@@ -72,7 +73,8 @@ shape_loader_state parse_shapes(std::string_view const data,
 
   for (auto idx = 0U; idx < points.size(); ++idx) {
     if (ordering_required[idx]) {
-      std::tie(point_seq[idx], points[idx], distances[idx]) = sort_by(point_seq[idx], points[idx], distances[idx]);
+      std::tie(point_seq[idx], points[idx], distances[idx]) =
+          sort_by(point_seq[idx], points[idx], distances[idx]);
     }
     shapes_data.data_.emplace_back(std::move(points[idx]));
     states.distances_.emplace_back(std::move(distances[idx]));
