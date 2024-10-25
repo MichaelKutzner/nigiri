@@ -6,6 +6,7 @@
 
 #include "geo/latlng.h"
 
+#include "utl/helpers/algorithm.h"
 #include "utl/parser/buf_reader.h"
 #include "utl/parser/csv_range.h"
 #include "utl/parser/line_range.h"
@@ -35,7 +36,6 @@ shape_loader_state parse_shapes(std::string_view const data,
   auto points = std::vector<std::vector<geo::latlng>>{};
   auto point_seq = std::vector<std::vector<unsigned>>{};
   auto distances = std::vector<std::vector<double>>{};
-  auto ordering_required = std::vector<bool>{};
   auto lookup = cached_lookup(states.id_map_);
 
   auto const progress_tracker = utl::get_active_progress_tracker();
@@ -51,16 +51,11 @@ shape_loader_state parse_shapes(std::string_view const data,
             points.push_back({});
             point_seq.push_back({});
             distances.push_back({});
-            ordering_required.push_back(false);
             return idx;
           });
           auto const idx = cista::to_idx(shape_idx - index_offset);
-          auto const seq = *entry.seq_;
-          if (!point_seq[idx].empty() && point_seq[idx].back() > seq) {
-            ordering_required[idx] = true;
-          }
           points[idx].emplace_back(geo::latlng{*entry.lat_, *entry.lon_});
-          point_seq[idx].emplace_back(std::move(seq));
+          point_seq[idx].emplace_back(*entry.seq_);
           if (distances[idx].empty()) {
             if (*entry.distance_ != 0.0) {
               distances[idx].resize(points[idx].size());
@@ -72,7 +67,7 @@ shape_loader_state parse_shapes(std::string_view const data,
         });
 
   for (auto idx = 0U; idx < points.size(); ++idx) {
-    if (ordering_required[idx]) {
+    if (!utl::is_sorted(point_seq[idx], std::less{})) {
       std::tie(point_seq[idx], points[idx], distances[idx]) =
           sort_by(point_seq[idx], points[idx], distances[idx]);
     }
