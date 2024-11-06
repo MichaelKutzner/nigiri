@@ -234,6 +234,9 @@ void shape_prepare::create_route_boxes(timetable const& tt) const {
     auto bounding_box = geo::box{};
     auto segment_boxes = std::vector<geo::box>(seq.size() - 1);
     auto box_count = 0UL;
+    auto processed =
+        std::vector<cista::pair<shape_idx_t, shape_offset_idx_t>>{};
+    auto shape_missing = false;
     auto const stop_indices =
         interval{stop_idx_t{0U}, static_cast<stop_idx_t>(seq.size())};
     for (auto const transport_idx : tt.route_transport_ranges_[r]) {
@@ -243,30 +246,41 @@ void shape_prepare::create_route_boxes(timetable const& tt) const {
                                          .rt_ = rt_transport_idx_t::invalid()}};
       frun.for_each_trip([&](trip_idx_t const trip_idx,
                              interval<stop_idx_t> const absolute_range) {
-        auto const [shape_idx, offset_idx] =
-            shapes_.trip_offset_indices_[trip_idx];
+        auto const indices = shapes_.trip_offset_indices_[trip_idx];
+        auto const [shape_idx, offset_idx] = indices;
         if (shape_idx == shape_idx_t::invalid() ||
             offset_idx == shape_offset_idx_t::invalid()) {
-          for (auto const idx : absolute_range) {
-            bounding_box.extend(
-                tt.locations_.coordinates_[stop{seq[idx]}.location_idx()]);
-          }
-        } else {
-          auto const& result = utl::find_if(
-              shape_results_[cista::to_idx(shape_idx - index_offset_)].results_,
-              [&](shape_results::result const& res) {
-                return res.offset_idx_ == offset_idx;
-              });
-          bounding_box.extend(result->trip_box_);
-          for (auto i = 0U; i < result->segment_boxes_.size(); ++i) {
-            segment_boxes[i + cista::to_idx(absolute_range.from_)] =
-                result->segment_boxes_[i];
-          }
-          box_count = std::max(box_count, static_cast<unsigned long>(
-                                              result->segment_boxes_.size() +
-                                              absolute_range.from_));
+          shape_missing = true;
+          return;
         }
+        if (utl::any_of(
+                processed,
+                [&](cista::pair<shape_idx_t, shape_offset_idx_t> const& pair) {
+                  return pair == indices;
+                })) {
+          return;
+        }
+        auto const& result = utl::find_if(
+            shape_results_[cista::to_idx(shape_idx - index_offset_)].results_,
+            [&](shape_results::result const& res) {
+              return res.offset_idx_ == offset_idx;
+            });
+        bounding_box.extend(result->trip_box_);
+        for (auto i = 0U; i < result->segment_boxes_.size(); ++i) {
+          segment_boxes[i + cista::to_idx(absolute_range.from_)] =
+              result->segment_boxes_[i];
+        }
+        box_count =
+            std::max(box_count,
+                     static_cast<unsigned long>(result->segment_boxes_.size() +
+                                                absolute_range.from_));
+        processed.emplace_back(std::move(indices));
       });
+    }
+    if (shape_missing) {
+      for (auto s : seq) {
+        bounding_box.extend(tt.locations_.coordinates_[stop{s}.location_idx()]);
+      }
     }
     segment_boxes.resize(box_count);
     route_boxes[box_idx] = std::move(bounding_box);
