@@ -8,6 +8,7 @@
 #include "utl/overloaded.h"
 
 #include "nigiri/common/delta_t.h"
+#include "nigiri/footpath.h"
 #include "nigiri/for_each_meta.h"
 #include "nigiri/routing/journey.h"
 #include "nigiri/routing/raptor/raptor_state.h"
@@ -121,7 +122,8 @@ std::optional<journey::leg> find_start_footpath(timetable const& tt,
                             leg_start_location,
                             j.start_time_,
                             delta_to_unix(base, fp_target_time),
-                            footpath{fp.target(), duration_t{fp_duration}}};
+                            journey_footpath{fp, q.transfer_time_settings_,
+                                             duration_t{fp_duration}}};
       } else {
         trace_rc_fp_start_no_match;
       }
@@ -466,7 +468,8 @@ void reconstruct_journey_with_vias(timetable const& tt,
                        l,
                        delta_to_unix(base, fp_start),
                        delta_to_unix(base, fp_start + dir(fp_duration)),
-                       footpath{fp.target(), duration_t{fp_duration}}};
+                       journey_footpath{fp, q.transfer_time_settings_,
+                                        duration_t{fp_duration}}};
       return std::pair{fp_leg, *transport_leg};
     } else {
       trace_reconstruct("nothing found\n");
@@ -629,7 +632,7 @@ void reconstruct_journey_with_vias(timetable const& tt,
                               }
                             }
                           },
-                          [&](footpath const&) {
+                          [&](journey_footpath const&) {
                             auto stay = 0_minutes;
                             if (v != q.via_stops_.size() &&
                                 matches(tt, location_match_mode::kEquivalent,

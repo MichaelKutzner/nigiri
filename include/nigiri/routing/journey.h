@@ -50,7 +50,7 @@ struct journey {
 
     location_idx_t from_, to_;
     unixtime_t dep_time_, arr_time_;
-    std::variant<run_enter_exit, footpath, offset> uses_;
+    std::variant<run_enter_exit, journey_footpath, offset> uses_;
   };
 
   bool dominates(journey const& o) const {

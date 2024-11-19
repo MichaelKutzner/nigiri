@@ -14,28 +14,33 @@ void journey::leg::print(std::ostream& out,
                          rt_timetable const* rtt,
                          unsigned const n_indent,
                          bool const) const {
-  std::visit(
-      utl::overloaded{
-          [&](run_enter_exit const& t) {
-            auto const fr = rt::frun{tt, rtt, t.r_};
-            for (auto i = t.stop_range_.from_; i != t.stop_range_.to_; ++i) {
-              if (!fr[i].is_canceled()) {
-                fr[i].print(out, i == t.stop_range_.from_,
-                            i == t.stop_range_.to_ - 1U);
-                out << "\n";
-              }
-            }
-          },
-          [&](footpath const x) {
-            indent(out, n_indent);
-            out << "FOOTPATH (duration=" << x.duration().count() << ")\n";
-          },
-          [&](offset const x) {
-            indent(out, n_indent);
-            out << "MUMO (id=" << x.transport_mode_id_
-                << ", duration=" << x.duration().count() << ")\n";
-          }},
-      uses_);
+  std::visit(utl::overloaded{
+                 [&](run_enter_exit const& t) {
+                   auto const fr = rt::frun{tt, rtt, t.r_};
+                   for (auto i = t.stop_range_.from_; i != t.stop_range_.to_;
+                        ++i) {
+                     if (!fr[i].is_canceled()) {
+                       fr[i].print(out, i == t.stop_range_.from_,
+                                   i == t.stop_range_.to_ - 1U);
+                       out << "\n";
+                     }
+                   }
+                 },
+                 [&](journey_footpath const x) {
+                   indent(out, n_indent);
+                   out << "FOOTPATH (duration=" << x.walk_duration().count();
+                   auto const additional = x.additional_duration().count();
+                   if (additional > 0) {
+                     out << ", additional=" << std::move(additional);
+                   }
+                   out << ")\n";
+                 },
+                 [&](offset const x) {
+                   indent(out, n_indent);
+                   out << "MUMO (id=" << x.transport_mode_id_
+                       << ", duration=" << x.duration().count() << ")\n";
+                 }},
+             uses_);
 }
 
 void journey::print(std::ostream& out,

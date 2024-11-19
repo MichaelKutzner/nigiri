@@ -7,6 +7,7 @@
 #include "cista/reflection/printable.h"
 
 #include "nigiri/logging.h"
+#include "nigiri/routing/transfer_time_settings.h"
 #include "nigiri/types.h"
 
 namespace nigiri {
@@ -61,6 +62,26 @@ struct footpath {
 
   location_idx_t::value_t target_ : kTargetBits;
   location_idx_t::value_t duration_ : kDurationBits;
+};
+
+struct journey_footpath {
+  explicit journey_footpath(footpath const& footpath)
+      : footpath_{footpath}, additional_duration_{0_minutes} {}
+
+  journey_footpath(footpath const& fp,
+                   routing::transfer_time_settings const& tts,
+                   duration_t const duration)
+      : footpath_{fp.target(), duration},
+        additional_duration_(tts.default_ ? 0_minutes : tts.additional_time_) {}
+
+  duration_t walk_duration() const {
+    return total_duration() - additional_duration();
+  }
+  duration_t additional_duration() const { return additional_duration_; }
+  duration_t total_duration() const { return footpath_.duration(); }
+
+  footpath footpath_;
+  duration_t additional_duration_;
 };
 
 template <std::size_t NMaxTypes>

@@ -137,7 +137,7 @@ leg 2: (B, B) [2019-05-01 08:20] -> (C, C) [2019-05-01 08:30]
 
 )"sv;
 
-[[maybe_unused]] constexpr auto const expected_A_C_add2 =
+constexpr auto const expected_A_C_add2 =
     R"(
 [2019-05-01 08:00, 2019-05-01 08:30]
 TRANSFERS: 1
@@ -147,7 +147,61 @@ leg 0: (A, A) [2019-05-01 08:00] -> (B, B) [2019-05-01 08:10]
    0: A       A...............................................                               d: 01.05 08:00 [01.05 10:00]  [{name=Bus 1, day=2019-05-01, id=T1, src=0}]
    1: B       B............................................... a: 01.05 08:10 [01.05 10:10]
 leg 1: (B, B) [2019-05-01 08:10] -> (B, B) [2019-05-01 08:14]
-  FOOTPATH (duration=2) + additional=2
+  FOOTPATH (duration=2, additional=2)
+leg 2: (B, B) [2019-05-01 08:20] -> (C, C) [2019-05-01 08:30]
+   0: B       B...............................................                               d: 01.05 08:20 [01.05 10:20]  [{name=Bus 2, day=2019-05-01, id=T3, src=0}]
+   1: C       C............................................... a: 01.05 08:30 [01.05 10:30]
+
+
+)"sv;
+
+constexpr auto const expected_A_C_min4_add3 =
+    R"(
+[2019-05-01 08:00, 2019-05-01 08:30]
+TRANSFERS: 1
+     FROM: (A, A) [2019-05-01 08:00]
+       TO: (C, C) [2019-05-01 08:30]
+leg 0: (A, A) [2019-05-01 08:00] -> (B, B) [2019-05-01 08:10]
+   0: A       A...............................................                               d: 01.05 08:00 [01.05 10:00]  [{name=Bus 1, day=2019-05-01, id=T1, src=0}]
+   1: B       B............................................... a: 01.05 08:10 [01.05 10:10]
+leg 1: (B, B) [2019-05-01 08:10] -> (B, B) [2019-05-01 08:17]
+  FOOTPATH (duration=4, additional=3)
+leg 2: (B, B) [2019-05-01 08:20] -> (C, C) [2019-05-01 08:30]
+   0: B       B...............................................                               d: 01.05 08:20 [01.05 10:20]  [{name=Bus 2, day=2019-05-01, id=T3, src=0}]
+   1: C       C............................................... a: 01.05 08:30 [01.05 10:30]
+
+
+)"sv;
+
+constexpr auto const expected_A_C_f15_add2 =
+    R"(
+[2019-05-01 08:00, 2019-05-01 08:30]
+TRANSFERS: 1
+     FROM: (A, A) [2019-05-01 08:00]
+       TO: (C, C) [2019-05-01 08:30]
+leg 0: (A, A) [2019-05-01 08:00] -> (B, B) [2019-05-01 08:10]
+   0: A       A...............................................                               d: 01.05 08:00 [01.05 10:00]  [{name=Bus 1, day=2019-05-01, id=T1, src=0}]
+   1: B       B............................................... a: 01.05 08:10 [01.05 10:10]
+leg 1: (B, B) [2019-05-01 08:10] -> (B, B) [2019-05-01 08:15]
+  FOOTPATH (duration=3, additional=2)
+leg 2: (B, B) [2019-05-01 08:20] -> (C, C) [2019-05-01 08:30]
+   0: B       B...............................................                               d: 01.05 08:20 [01.05 10:20]  [{name=Bus 2, day=2019-05-01, id=T3, src=0}]
+   1: C       C............................................... a: 01.05 08:30 [01.05 10:30]
+
+
+)"sv;
+
+constexpr auto const expected_A_C_f25_add2 =
+    R"(
+[2019-05-01 08:00, 2019-05-01 08:30]
+TRANSFERS: 1
+     FROM: (A, A) [2019-05-01 08:00]
+       TO: (C, C) [2019-05-01 08:30]
+leg 0: (A, A) [2019-05-01 08:00] -> (B, B) [2019-05-01 08:10]
+   0: A       A...............................................                               d: 01.05 08:00 [01.05 10:00]  [{name=Bus 1, day=2019-05-01, id=T1, src=0}]
+   1: B       B............................................... a: 01.05 08:10 [01.05 10:10]
+leg 1: (B, B) [2019-05-01 08:10] -> (B, B) [2019-05-01 08:17]
+  FOOTPATH (duration=5, additional=2)
 leg 2: (B, B) [2019-05-01 08:20] -> (C, C) [2019-05-01 08:30]
    0: B       B...............................................                               d: 01.05 08:20 [01.05 10:20]  [{name=Bus 2, day=2019-05-01, id=T3, src=0}]
    1: C       C............................................... a: 01.05 08:30 [01.05 10:30]
@@ -238,33 +292,33 @@ TEST(routing, transfer_time_settings_test) {
       auto const results =
           search(tt, nullptr, "A", "C", tt.date_range_, dir,
                  {.default_ = false, .additional_time_ = duration_t{2}});
-      EXPECT_EQ(expected_A_C_f20, results_to_str(results, tt));
+      EXPECT_EQ(expected_A_C_add2, results_to_str(results, tt));
     }
     {
-      // A -> C, 1.5x transfer time, 1 min additional (= 4 min)
+      // A -> C, 1.5x transfer time (= 3 min), 2 min additional
       auto const results = search(tt, nullptr, "A", "C", tt.date_range_, dir,
                                   {.default_ = false,
-                                   .additional_time_ = duration_t{1},
+                                   .additional_time_ = duration_t{2},
                                    .factor_ = 1.5F});
-      EXPECT_EQ(expected_A_C_f20, results_to_str(results, tt));
+      EXPECT_EQ(expected_A_C_f15_add2, results_to_str(results, tt));
     }
     {
-      // A -> C, min 3 min transfer time, 1 min additional (= 4 min)
+      // A -> C, min 4 min transfer time, 3 min additional
+      auto const results = search(tt, nullptr, "A", "C", tt.date_range_, dir,
+                                  {.default_ = false,
+                                   .min_transfer_time_ = duration_t{4},
+                                   .additional_time_ = duration_t{3}});
+      EXPECT_EQ(expected_A_C_min4_add3, results_to_str(results, tt));
+    }
+    {
+      // A -> C
+      // min 3 min transfer time, 2.5x transfer time (= 5 min), 2 min additional
       auto const results = search(tt, nullptr, "A", "C", tt.date_range_, dir,
                                   {.default_ = false,
                                    .min_transfer_time_ = duration_t{3},
-                                   .additional_time_ = duration_t{1}});
-      EXPECT_EQ(expected_A_C_f20, results_to_str(results, tt));
-    }
-    {
-      // A -> C, min 3 min transfer time, 2.5x transfer time, 5 min additional
-      // (= 10 min)
-      auto const results = search(tt, nullptr, "A", "C", tt.date_range_, dir,
-                                  {.default_ = false,
-                                   .min_transfer_time_ = duration_t{3},
-                                   .additional_time_ = duration_t{5},
+                                   .additional_time_ = duration_t{2},
                                    .factor_ = 2.5F});
-      EXPECT_EQ(expected_A_C_min10, results_to_str(results, tt));
+      EXPECT_EQ(expected_A_C_f25_add2, results_to_str(results, tt));
     }
   }
 }
