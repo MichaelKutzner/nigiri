@@ -34,6 +34,43 @@ using std::operator""sv;
 
 namespace {
 
+// Stops and trip geometry
+// Not showing shapes 11, 12, 13, 14
+//
+//  .         .         X         W         V         .
+//                        \\   //   \\   //
+//                          \-/       +-/
+//                                  //
+//  .         .         .         U         .         .
+//                             //
+//                          /-/
+//                        //
+//  .         .         T         .         K         .
+//                      |               /-/
+//                      |              <
+//                      |               \-\
+//  .         .         S         .         J      /- O
+//                      |               /-/      //
+//                      |   /-\       /+    N1--/
+//                      | //   \\   //  \-\ |
+//  .         .         G         H -------I/N---/    .
+//                  /-/           |         |  //
+//                 <              |         +-/
+//                  \-\           |
+//  .         .         F    /--- M ---/    .         .
+//                  /-/     /     |  //
+//                 <       /      +-/
+//                  \-\   /
+//  .         .         A         B         C         D
+//                  /-/   \\   //   \\   //   \\   //
+//                 /        \-/       \-/       \-/
+//              /-/
+//          / Q         .         .         .         .
+//       /-/
+//      /
+//     /
+//  Q+/
+
 constexpr auto kSchedule = R"(
 # agency.txt
 agency_name,agency_url,agency_timezone,agency_lang,agency_phone,agency_id
