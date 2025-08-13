@@ -122,6 +122,12 @@ add_executable(nigiri-qa ${nigiri-qa-files})
 target_link_libraries(nigiri-qa PRIVATE nigiri boost-program_options)
 target_compile_features(nigiri-qa PUBLIC cxx_std_23)
 
+# --- GTFS-CLIPPER ---
+file(GLOB_RECURSE nigiri-gtfs-clipper-files exe/gtfs-clipper.cc)
+add_executable(nigiri-gtfs-clipper ${nigiri-gtfs-clipper-files})
+target_link_libraries(nigiri-gtfs-clipper PRIVATE nigiri boost-program_options)
+target_compile_features(nigiri-gtfs-clipper PUBLIC cxx_std_23)
+
 # --- TEST ---
 add_library(nigiri-generated INTERFACE)
 target_include_directories(nigiri-generated INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/generated)
