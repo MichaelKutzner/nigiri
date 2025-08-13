@@ -15,8 +15,13 @@
 #include "utl/parser/csv_range.h"
 #include "utl/parser/line_range.h"
 #include "utl/pipes/for_each.h"
+#include "utl/read_file.h"
+#include "utl/to_vec.h"
 // #include "utl/pipes/transform.h"
 // #include "utl/pipes/vec.h"
+
+#include "boost/geometry/geometry.hpp"
+#include "boost/json.hpp"
 
 #include "miniz.h"
 
@@ -32,19 +37,54 @@ using namespace std::literals::string_view_literals;
 
 using namespace nigiri;
 
-constexpr auto const kDemoShape = R"(
-{ "type": "Polygon",
-  "coordinates": [
-    [[6.066047, 50.780713], [6.07256, 50.77932], [6.07283, 50.78430], [6.066047, 50.780713]]
-  ]
+geo::simple_polygon as_polygon(boost::json::array const& a) {
+  auto const to_latlng = [](boost::json::array const& x) -> geo::latlng {
+    return {x.at(1).as_double(), x.at(0).as_double()};
+  };
+  return utl::to_vec(a, [&](auto&& y) { return to_latlng(y.as_array()); });
 }
-)"sv;
-auto const demo_polygon = geo::simple_polygon{
-    {50.780713, 6.066047},
-    {50.77932, 6.07256},
-    {50.78430, 6.07283},
-    {50.780713, 6.066047},
-};
+
+std::optional<geo::simple_polygon> read_geometry(
+    std::string_view const& filename) {
+  auto const content = utl::read_file(filename.data());
+  if (!content) {
+    fmt::println(std::cerr, "Failed to read '{}'", filename);
+    return std::nullopt;
+  }
+  fmt::println("Content: '{}'", *content);
+  auto const pol = boost::json::parse(*content);
+  auto const geometry = pol.try_as_object()
+                            ->try_at("features")
+                            ->try_as_array()
+                            ->try_at(0U)
+                            ->try_as_object()
+                            ->try_at("geometry")
+                            ->try_as_object();
+  if (geometry.has_error()) {
+    fmt::println(std::cerr, "Cannot find geometry");
+    return std::nullopt;
+  }
+  auto const type = geometry->try_at("type")->try_as_string();
+  if (type.has_error()) {
+    fmt::println(std::cerr, "Cannot find 'type'");
+    return std::nullopt;
+  }
+  if (type->data() != "Polygon"sv) {
+    fmt::println(std::cerr, "Unsupported type '{}'", type->data());
+    return std::nullopt;
+  }
+  auto const coords = geometry->try_at("coordinates")->try_as_array();
+  if (coords.has_error()) {
+    fmt::println(std::cerr, "Failed to get coordinates");
+    return std::nullopt;
+  }
+  auto const ring0 = coords->try_at(0U)->try_as_array();
+  if (ring0.has_error()) {
+    fmt::println(std::cerr, "Missing ring 0 for cooordinates");
+    return std::nullopt;
+  }
+  return as_polygon(*ring0);
+}
 
 template <typename T>
 void csv_copy(std::ostream& out,
@@ -294,7 +334,9 @@ auto copy_frequencies(std::string_view const& content,
   });
 }
 
-void clip_feed(nigiri::loader::dir const& dir, mz_zip_archive& ar) {
+void clip_feed(nigiri::loader::dir const& dir,
+               geo::simple_polygon const& polygon,
+               mz_zip_archive& ar) {
   auto source_files = hash_set<std::string>{};
   for (auto const& p : dir.list_files(".")) {
     source_files.insert(p.string());
@@ -319,7 +361,7 @@ void clip_feed(nigiri::loader::dir const& dir, mz_zip_archive& ar) {
   };
   // auto get_content = [&](auto const& p) { return dir.get_file(p).data(); };
   auto const inner_stops = get_stops_within(
-      dir.get_file(loader::gtfs::kStopFile).data(), demo_polygon);
+      dir.get_file(loader::gtfs::kStopFile).data(), polygon);
   fmt::println("Number of inner stops: {}", inner_stops.size());
   auto const clipped_trips = clip_trips(
       dir.get_file(loader::gtfs::kStopTimesFile).data(), inner_stops);
@@ -391,11 +433,16 @@ void clip_feed(nigiri::loader::dir const& dir, mz_zip_archive& ar) {
 }
 
 int main() {
-  // auto const in_feed = "../../gtfs/avv_masten_20250120.zip"sv;
   auto const in_feed = "../../gtfs/avv_masten_20250813.zip"sv;
+  auto const geometry_file = "../../gtfs/test.geojson"sv;
+  auto const polygon = read_geometry(geometry_file);
+  if (!polygon) {
+    fmt::println(std::cerr, "Failed to load polygon from '{}'", geometry_file);
+    return 1;
+  }
+  fmt::println("Polygon: {}", *polygon);
   auto const dir = loader::make_dir(in_feed);
   auto const out_feed = "gtfs-clipped.zip";
-  // auto const out_dir = std::filesystem::path{"out_dir"};
   auto ar = mz_zip_archive{};
   unlink(out_feed);
   mz_zip_writer_init_file(&ar, out_feed, 0);
@@ -403,7 +450,7 @@ int main() {
   // for (auto const& x : dir->list_files(".")) {
   //   fmt::println("File: '{}'", x.filename().string());
   // }
-  clip_feed(*dir, ar);
+  clip_feed(*dir, *polygon, ar);
   mz_zip_writer_finalize_archive(&ar);
   mz_zip_writer_end(&ar);
   // for (auto const& t : clipped_trips) {
