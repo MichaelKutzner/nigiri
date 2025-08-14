@@ -5,6 +5,7 @@
 // - Template to copy tables when id contained in colletion
 //
 
+#include <filesystem>
 #include <iostream>
 #include <ranges>
 #include <string_view>
@@ -22,6 +23,7 @@
 
 #include "boost/geometry/geometry.hpp"
 #include "boost/json.hpp"
+#include "boost/program_options.hpp"
 
 #include "miniz.h"
 
@@ -31,10 +33,12 @@
 
 #include "nigiri/loader/dir.h"
 #include "nigiri/loader/gtfs/files.h"
+#include "nigiri/logging.h"
 #include "nigiri/types.h"
 
+namespace fs = std::filesystem;
+namespace bpo = boost::program_options;
 using namespace std::literals::string_view_literals;
-
 using namespace nigiri;
 
 geo::simple_polygon as_polygon(boost::json::array const& a) {
@@ -44,11 +48,10 @@ geo::simple_polygon as_polygon(boost::json::array const& a) {
   return utl::to_vec(a, [&](auto&& y) { return to_latlng(y.as_array()); });
 }
 
-std::optional<geo::simple_polygon> read_geometry(
-    std::string_view const& filename) {
-  auto const content = utl::read_file(filename.data());
+std::optional<geo::simple_polygon> read_geometry(fs::path const& p) {
+  auto const content = utl::read_file(p.c_str());
   if (!content) {
-    fmt::println(std::cerr, "Failed to read '{}'", filename);
+    fmt::println(std::cerr, "Failed to read '{}'", p.c_str());
     return std::nullopt;
   }
   fmt::println("Content: '{}'", *content);
@@ -360,8 +363,8 @@ void clip_feed(nigiri::loader::dir const& dir,
     source_files.erase(p);
   };
   // auto get_content = [&](auto const& p) { return dir.get_file(p).data(); };
-  auto const inner_stops = get_stops_within(
-      dir.get_file(loader::gtfs::kStopFile).data(), polygon);
+  auto const inner_stops =
+      get_stops_within(dir.get_file(loader::gtfs::kStopFile).data(), polygon);
   fmt::println("Number of inner stops: {}", inner_stops.size());
   auto const clipped_trips = clip_trips(
       dir.get_file(loader::gtfs::kStopTimesFile).data(), inner_stops);
@@ -432,20 +435,63 @@ void clip_feed(nigiri::loader::dir const& dir,
   fmt::println("Unhandled files: {}", source_files);
 }
 
-int main() {
-  auto const in_feed = "../../gtfs/avv_masten_20250813.zip"sv;
-  auto const geometry_file = "../../gtfs/test.geojson"sv;
-  auto const polygon = read_geometry(geometry_file);
+int main(int ac, char** av) {
+  auto in = fs::path{};
+  auto out = fs::path{"gtfs-clipped.zip"};
+  auto geometry = fs::path{"geometry.geojson"};
+
+  auto desc = bpo::options_description{"Options"};
+  desc.add_options()  //
+      ("help,h", "produce this help message")  //
+      ("in,i", bpo::value(&in), "input GTFS path")  //
+      ("out,o", bpo::value(&out)->default_value(out), "output GTFS path")  //
+      ("geometry,g", bpo::value(&geometry)->default_value(geometry),
+       "geometry path")  //
+      ("force,f", "force override of out GTFS file if exists");  //
+  auto const pos = bpo::positional_options_description{}.add("in", -1);
+
+  auto vm = bpo::variables_map{};
+  bpo::store(
+      bpo::command_line_parser(ac, av).options(desc).positional(pos).run(), vm);
+  bpo::notify(vm);
+
+  if (vm.count("help") != 0U) {
+    std::cout << desc << "\n";
+    return 0;
+  }
+  auto const force = vm.count("force") > 0U;
+  if (in.empty() || !std::filesystem::is_regular_file(in)) {
+    fmt::println(std::cerr, "Missing in GTFS feed '{}'", in.c_str());
+    return 1;
+  }
+  if (exists(out) && !force) {
+    fmt::println(std::cerr, "out GTFS feed '{}' already exists", out.c_str());
+    return 1;
+  }
+  if (force && exists(out)) {
+    if (is_directory(out)) {
+      fmt::println(std::cerr, "out GTFS feed '{}' exists and is a directory",
+                   out.c_str());
+      return 1;
+    }
+    fmt::println(std::cerr, "Deleting already existing out file '{}' ...",
+                 out.c_str());
+    fs::remove(out);
+  }
+  if (!exists(geometry)) {
+    fmt::println(std::cerr, "Missing geometry file '{}'", geometry.c_str());
+    return 1;
+  }
+  auto const polygon = read_geometry(geometry);
   if (!polygon) {
-    fmt::println(std::cerr, "Failed to load polygon from '{}'", geometry_file);
+    fmt::println(std::cerr, "Failed to load polygon from '{}'",
+                 geometry.c_str());
     return 1;
   }
   fmt::println("Polygon: {}", *polygon);
-  auto const dir = loader::make_dir(in_feed);
-  auto const out_feed = "gtfs-clipped.zip";
+  auto const dir = loader::make_dir(in);
   auto ar = mz_zip_archive{};
-  unlink(out_feed);
-  mz_zip_writer_init_file(&ar, out_feed, 0);
+  mz_zip_writer_init_file(&ar, out.string().data(), 0);
   // fmt::println("Path: {}", dir->path().string());
   // for (auto const& x : dir->list_files(".")) {
   //   fmt::println("File: '{}'", x.filename().string());
