@@ -9,6 +9,7 @@
 
 #include "utl/read_file.h"
 #include "utl/to_vec.h"
+#include "utl/verify.h"
 
 #include "geo/polygon.h"
 
@@ -16,6 +17,7 @@
 #include "fmt/ostream.h"
 
 #include "nigiri/loader/dir.h"
+#include "nigiri/common/geojson.h"
 #include "nigiri/preprocessing/clipping/gtfs.h"
 
 namespace fs = std::filesystem;
@@ -30,44 +32,10 @@ geo::simple_polygon as_polygon(boost::json::array const& a) {
   return utl::to_vec(a, [&](auto&& y) { return to_latlng(y.as_array()); });
 }
 
-std::optional<geo::simple_polygon> read_geometry(fs::path const& p) {
+std::vector<geo::simple_polygon> read_geometry(fs::path const& p) {
   auto const content = utl::read_file(p.c_str());
-  if (!content) {
-    fmt::println(std::cerr, "Failed to read '{}'", p.c_str());
-    return std::nullopt;
-  }
-  auto const pol = boost::json::parse(*content);
-  auto const geometry = pol.try_as_object()
-                            ->try_at("features")
-                            ->try_as_array()
-                            ->try_at(0U)
-                            ->try_as_object()
-                            ->try_at("geometry")
-                            ->try_as_object();
-  if (geometry.has_error()) {
-    fmt::println(std::cerr, "Cannot find geometry");
-    return std::nullopt;
-  }
-  auto const type = geometry->try_at("type")->try_as_string();
-  if (type.has_error()) {
-    fmt::println(std::cerr, "Cannot find 'type'");
-    return std::nullopt;
-  }
-  if (type->data() != "Polygon"sv) {
-    fmt::println(std::cerr, "Unsupported type '{}'", type->data());
-    return std::nullopt;
-  }
-  auto const coords = geometry->try_at("coordinates")->try_as_array();
-  if (coords.has_error()) {
-    fmt::println(std::cerr, "Failed to get coordinates");
-    return std::nullopt;
-  }
-  auto const ring0 = coords->try_at(0U)->try_as_array();
-  if (ring0.has_error()) {
-    fmt::println(std::cerr, "Missing ring 0 for cooordinates");
-    return std::nullopt;
-  }
-  return as_polygon(*ring0);
+  utl::verify(content.has_value(), "Failed to read '{}'", p.c_str());
+  return common::parse_features(*content);
 }
 
 int main(int ac, char** av) {
@@ -119,16 +87,17 @@ int main(int ac, char** av) {
   }
 
   auto const dir = loader::make_dir(in);
-  auto const polygon = read_geometry(geometry);
-  if (!polygon) {
-    fmt::println(std::cerr, "Failed to load polygon from '{}'",
+  auto const polygons = read_geometry(geometry);
+  if (polygons.size() != 1U) {
+    fmt::println(std::cerr, "Failed to load geometry from '{}'",
                  geometry.c_str());
     return 1;
   }
+  auto const& polygon = polygons[0U];
 
   auto ar = mz_zip_archive{};
   mz_zip_writer_init_file(&ar, out.string().data(), 0);
-  preprocessing::clipping::clip_feed(*dir, *polygon, ar);
+  preprocessing::clipping::clip_feed(*dir, polygon, ar);
   mz_zip_writer_finalize_archive(&ar);
   mz_zip_writer_end(&ar);
 
