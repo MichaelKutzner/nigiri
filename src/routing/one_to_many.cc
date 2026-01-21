@@ -103,7 +103,7 @@ std::vector<duration_t> to_durations(many_search_state const& state,
       });
 }
 
-template <direction SearchDir>
+template <direction SearchDir, bool Rt>
 std::vector<duration_t> one_to_many(timetable const& tt,
                                     rt_timetable const* rtt,
                                     many_search_state&& ms_state,
@@ -123,7 +123,6 @@ std::vector<duration_t> one_to_many(timetable const& tt,
   auto const base = make_base(tt, start_time);
   auto const is_wheelchair = q.prf_idx_ == kWheelchairProfile;
 
-  constexpr auto const Rt = false;  // TODO Test rtt == nullptr
   auto algo = raptor<SearchDir, Rt, kVias, search_mode::kOneToMany>{
       tt,
       rtt,
@@ -145,6 +144,18 @@ std::vector<duration_t> one_to_many(timetable const& tt,
   run_raptor(std::move(algo), tt, start_time, q);
 
   return to_durations(ms_state, tt, start_time);
+}
+
+template <direction SearchDir>
+std::vector<duration_t> one_to_many(timetable const& tt,
+                                    rt_timetable const* rtt,
+                                    many_search_state&& ms_state,
+                                    query const& q) {
+  if (rtt == nullptr) {
+    return one_to_many<SearchDir, false>(tt, rtt, std::move(ms_state), q);
+  } else {
+    return one_to_many<SearchDir, true>(tt, rtt, std::move(ms_state), q);
+  }
 }
 
 template std::vector<duration_t> one_to_many<direction::kForward>(
