@@ -985,28 +985,16 @@ TEST(
 
     auto const start_time =
         unixtime_t{sys_days{2024_y / January / 1}} + 9_hours;
-    auto const q = routing::query{
-        .start_time_ = start_time,
-        .start_ = to_offsets("A"),
-        .destination_ = {{to_location_idx("C"), 0_minutes, 0U},
-                         {to_location_idx("S"), 0_minutes, 0U},
-                         {to_location_idx("V"), 0_minutes, 0U}}
-        // .start_ = {{to_location_idx("A"), 10_minutes, 0U}},
-    };
+    auto const q =
+        routing::query{.start_time_ = start_time, .start_ = to_offsets("A")};
     auto state = nigiri::routing::many_search_state{
         {to_offsets("C"), to_offsets("S"), to_offsets("V")}};
-    // [[maybe_unused]] auto state = nigiri::routing::one_to_all<kSearchDir>(tt,
-    // &rtt, q);
     auto const durations =
         nigiri::routing::one_to_many<kSearchDir>(tt, &rtt, std::move(state), q);
 
     EXPECT_EQ(durations, (std::vector<delta_t>{(2_hours).count(),
                                                (2_hours + 15_minutes).count(),
                                                (6_hours).count()}));
-    // EXPECT_EQ(durations, (std::vector{2_hours, 3_hours, 7_hours}));
-
-    // auto const durations = nigiri::routing::one_to_many<kSearchDir>(tt, &rtt,
-    // q);
   }
   // One-to-Many, many offsets per start / target
   {

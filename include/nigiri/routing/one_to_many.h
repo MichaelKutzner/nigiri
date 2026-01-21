@@ -24,21 +24,6 @@ namespace nigiri::routing {
 
 constexpr auto const kVias = via_offset_t{0U};
 
-// struct many_search_state {
-//   struct worst {
-//     std::size_t offset_{0U};
-//     duration_t duration_{duration_t::max()};  // TODO Fix type
-//   };
-//
-//   many_search_state(std::vector<std::vector<offset>> const offsets);
-//   void update(std::size_t const k, nigiri::location_idx_t, duration_t);
-//
-//   std::vector<std::vector<offset>> dest_offsets_;
-//   std::vector<duration_t> best_;
-//   nigiri::hash_map<nigiri::location_idx_t, std::vector<std::size_t>> lookup_;
-//   worst worst_;
-// };
-
 inline bitvec to_dest(many_search_state const& state,
                       unsigned int const n_locations) {
   auto d = bitvec{};
@@ -51,11 +36,10 @@ inline bitvec to_dest(many_search_state const& state,
 
 template <direction SearchDir>
 // std::vector<duration_t> one_to_many(
-std::vector<delta_t> one_to_many(
-    [[maybe_unused]] timetable const& tt,
-    [[maybe_unused]] rt_timetable const* rtt,
-    [[maybe_unused]] many_search_state&& ms_state,
-    [[maybe_unused]] query const& q) {
+std::vector<delta_t> one_to_many([[maybe_unused]] timetable const& tt,
+                                 [[maybe_unused]] rt_timetable const* rtt,
+                                 [[maybe_unused]] many_search_state&& ms_state,
+                                 [[maybe_unused]] query const& q) {
   utl::verify(std::holds_alternative<unixtime_t>(q.start_time_),
               "Start-time must be a time point (unixtime_t)");
   utl::verify(q.via_stops_.empty(),
@@ -114,12 +98,6 @@ std::vector<delta_t> one_to_many(
                results);
 
   return std::move(ms_state.best_);
-  // auto costs = std::vector<duration_t>{};
-  // costs.reserve(ms_state.best_.size())
-  // for (auto const& x : ms_state.best_) {
-  //   costs.push_back(x)
-  // }
-  // return std::move(ms_state
 }
 
 }  // namespace nigiri::routing

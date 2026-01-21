@@ -114,8 +114,6 @@ struct raptor {
       bool const is_wheelchair,
       transfer_time_settings const& tts,
       many_search_state* ms_state = nullptr  // TODO Merge with raptor_state?
-      // std::enable_if<SearchMode == search_mode::kOneToMany,
-      //                many_search_state> const& ms_state,
       )
       : tt_{tt},
         rtt_{rtt},
@@ -212,7 +210,6 @@ struct raptor {
         }
       }
       is_dest_.for_each_set_bit([&](std::uint64_t const i) {
-        // Not invoked for 1:N (is_dest_ == {})
         update_time_at_dest(k, static_cast<location_idx_t::value_t>(i),
                             best_[i][Vias]);
       });
@@ -488,7 +485,6 @@ private:
           best_[i][target_v] = fp_target_time;
           state_.station_mark_.set(i, true);
           if (is_dest) {
-            // TODO Not invoked for 1:N
             update_time_at_dest(k, i, fp_target_time);
           }
         }
@@ -574,7 +570,6 @@ private:
             best_[target][target_v] = fp_target_time;
             state_.station_mark_.set(target, true);
             if (target_v == Vias && is_dest_[target]) {
-              // TODO Not invoked for 1:N
               update_time_at_dest(k, target, fp_target_time);
             }
           } else {
@@ -672,7 +667,6 @@ private:
             best_[target][target_v] = fp_target_time;
             state_.station_mark_.set(target, true);
             if (is_dest_[target]) {
-              // TODO Not invoked for 1:N
               update_time_at_dest(k, target, fp_target_time);
             }
           } else {
@@ -695,7 +689,6 @@ private:
     if (dist_to_end_.empty()) {
       return;
     }
-    // TODO ?? Not invoked for 1:N ??
 
     state_.prev_station_mark_.for_each_set_bit([&](auto const i) {
       if (!end_reachable_.test(i)) {
@@ -1229,7 +1222,6 @@ private:
   void update_time_at_dest(unsigned const k,
                            location_idx_t::value_t const l,
                            delta_t const t) {
-    // TODO Different update for 1:N
     if constexpr (SearchMode == search_mode::kOneToAll) {
       return;
     }
@@ -1237,8 +1229,6 @@ private:
       ms_state_->update(k, l, t);
       return;
     }
-    // if constexpr (SearchMode == search_mode::kOneToMany) {
-    // }
     for (auto i = k; i != time_at_dest_.size(); ++i) {
       time_at_dest_[i] = get_best(time_at_dest_[i], t);
     }
@@ -1281,8 +1271,6 @@ private:
   std::vector<via_stop> const& via_stops_;
   std::array<delta_t, kMaxTransfers + 2> time_at_dest_;
   many_search_state* ms_state_;
-  // std::enable_if<SearchMode == search_mode::kOneToMany,
-  //                many_search_state> const& ms_state_;
   day_idx_t base_;
   raptor_stats stats_;
   clasz_mask_t allowed_claszes_;
@@ -1290,13 +1278,6 @@ private:
   bool require_car_transport_;
   bool is_wheelchair_;
   transfer_time_settings transfer_time_settings_;
-
-  // if constexpr (SearchMode == search_mode::kOneToAll) {
-  //   bool xx_;
-  // }
-  // std::enable_if_t<SearchMode == search_mode::kOneToAll,
-  //                  vecvec<std::uint16_t, offset>>
-  //     dests_;
 };
 
 }  // namespace nigiri::routing
