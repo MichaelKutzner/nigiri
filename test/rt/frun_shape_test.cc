@@ -992,9 +992,7 @@ TEST(
     auto const durations =
         nigiri::routing::one_to_many<kSearchDir>(tt, &rtt, std::move(state), q);
 
-    EXPECT_EQ(durations, (std::vector<delta_t>{(2_hours).count(),
-                                               (2_hours + 15_minutes).count(),
-                                               (6_hours).count()}));
+    EXPECT_EQ(durations, (std::vector{2_hours, 2_hours + 15_minutes, 6_hours}));
   }
   // One-to-Many, many offsets per start / target
   {

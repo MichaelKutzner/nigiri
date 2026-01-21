@@ -1,18 +1,13 @@
 #pragma once
 
-#include <cstddef>
 #include <vector>
 
-#include "utl/enumerate.h"
-#include "utl/get_or_create.h"
-#include "utl/helpers/algorithm.h"
 #include "utl/verify.h"
-#include "utl/zip.h"
 
+#include "nigiri/common/delta_t.h"
 #include "nigiri/for_each_meta.h"
 #include "nigiri/routing/many_search_state.h"
 #include "nigiri/routing/one_to_all.h"
-#include "nigiri/routing/one_to_many.h"
 #include "nigiri/routing/pareto_set.h"
 #include "nigiri/routing/query.h"
 #include "nigiri/routing/raptor/raptor.h"
@@ -35,11 +30,11 @@ inline bitvec to_dest(many_search_state const& state,
 }
 
 template <direction SearchDir>
-// std::vector<duration_t> one_to_many(
-std::vector<delta_t> one_to_many([[maybe_unused]] timetable const& tt,
-                                 [[maybe_unused]] rt_timetable const* rtt,
-                                 [[maybe_unused]] many_search_state&& ms_state,
-                                 [[maybe_unused]] query const& q) {
+std::vector<duration_t> one_to_many(
+    [[maybe_unused]] timetable const& tt,
+    [[maybe_unused]] rt_timetable const* rtt,
+    [[maybe_unused]] many_search_state&& ms_state,
+    [[maybe_unused]] query const& q) {
   utl::verify(std::holds_alternative<unixtime_t>(q.start_time_),
               "Start-time must be a time point (unixtime_t)");
   utl::verify(q.via_stops_.empty(),
@@ -54,6 +49,11 @@ std::vector<delta_t> one_to_many([[maybe_unused]] timetable const& tt,
   auto lb = std::vector<std::uint16_t>(tt.n_locations(), 0U);
   auto const base = make_base(tt, start_time);
   auto const is_wheelchair = q.prf_idx_ == kWheelchairProfile;
+
+  auto const d_base = [&]() -> date::sys_days {
+    return tt.internal_interval_days().from_ +
+           static_cast<int>(to_idx(base)) * date::days{1};
+  }();
 
   constexpr auto const Rt = false;  // TODO Test rtt == nullptr
   auto algo = raptor<SearchDir, Rt, kVias, search_mode::kOneToMany>{
@@ -96,8 +96,12 @@ std::vector<delta_t> one_to_many([[maybe_unused]] timetable const& tt,
 
   algo.execute(start_time, q.max_transfers_, worst_time_at_dest, q.prf_idx_,
                results);
-
-  return std::move(ms_state.best_);
+  auto durations = std::vector<duration_t>{};
+  durations.reserve(ms_state.best_.size());
+  for (auto const b : ms_state.best_) {
+    durations.push_back(delta_to_unix(d_base, b) - start_time);
+  }
+  return durations;
 }
 
 }  // namespace nigiri::routing
