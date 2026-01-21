@@ -32,5 +32,6 @@ fastest_offset get_fastest_one_to_all_offsets(timetable const& tt,
                                               std::uint8_t transfers);
 
 day_idx_t make_base(timetable const&, unixtime_t start_time);
+date::sys_days to_base_days(timetable const&, unixtime_t start_time);
 
 }  // namespace nigiri::routing

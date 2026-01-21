@@ -23,8 +23,7 @@ namespace nigiri::routing {
 struct many_search_state {
   struct worst {
     std::size_t offset_{0U};
-    // duration_t duration_{duration_t::max()};  // TODO Fix type
-    delta_t duration_{std::numeric_limits<delta_t>::max()};  // TODO Fix type
+    delta_t delta_{std::numeric_limits<delta_t>::max()};  // TODO Fix type
   };
 
   many_search_state(std::vector<std::vector<offset>> const offsets);
@@ -33,7 +32,6 @@ struct many_search_state {
 
   std::vector<std::vector<offset>> dest_offsets_;
   std::vector<delta_t> best_;
-  // std::vector<duration_t> best_;
   nigiri::hash_map<nigiri::location_idx_t, std::vector<std::size_t>> lookup_;
   worst worst_;
 };

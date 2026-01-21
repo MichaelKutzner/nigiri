@@ -8,47 +8,29 @@
 
 #include "utl/verify.h"
 
+#include "date/date.h"
+
 #include "nigiri/for_each_meta.h"
 #include "nigiri/routing/raptor/raptor.h"
+#include "nigiri/routing/raptor/run_raptor.h"
 #include "nigiri/routing/start_times.h"
+#include "nigiri/timetable.h"
+#include "nigiri/types.h"
 
 namespace nigiri::routing {
 
 constexpr auto const kVias = via_offset_t{0U};
 
-day_idx_t make_base(timetable const& tt, unixtime_t start_time) {
+day_idx_t make_base(timetable const& tt, unixtime_t const start_time) {
   return day_idx_t{std::chrono::duration_cast<date::days>(
                        std::chrono::round<std::chrono::days>(start_time) -
                        tt.internal_interval().from_)
                        .count()};
 }
 
-template <direction SearchDir, bool Rt>
-void run_raptor(raptor<SearchDir, Rt, kVias, search_mode::kOneToAll>&& algo,
-                timetable const& tt,
-                unixtime_t const& start_time,
-                query const& q) {
-  auto results = pareto_set<journey>{};
-  algo.next_start_time();
-  for (auto const& s : q.start_) {
-    auto const t = SearchDir == direction::kForward ? start_time + s.duration()
-                                                    : start_time - s.duration();
-    trace("init: time_at_stop={} at {}\n", t, location_idx_t{s.target()});
-    nigiri::routing::for_each_meta(
-        tt, q.start_match_mode_, s.target(),
-        [&](nigiri::location_idx_t const l) { algo.add_start(l, t); });
-  }
-
-  // Upper bound: Search journeys faster than 'worst_time_at_dest'
-  // It will not find journeys with the same duration
-  constexpr auto const kEpsilon = duration_t{1};
-  auto const worst_time_at_dest =
-      start_time +
-      (SearchDir == direction::kForward ? 1 : -1) * (q.max_travel_time_) +
-      kEpsilon;
-
-  algo.execute(start_time, q.max_transfers_, worst_time_at_dest, q.prf_idx_,
-               results);
+date::sys_days to_base_days(timetable const& tt, unixtime_t const start_time) {
+  return tt.internal_interval_days().from_ +
+         static_cast<int>(to_idx(make_base(tt, start_time))) * date::days{1};
 }
 
 template <direction SearchDir, bool Rt>
@@ -116,9 +98,7 @@ fastest_offset get_fastest_one_to_all_offsets(timetable const& tt,
   for (auto const k : std::views::iota(std::uint8_t{0U}, transfers + 2U)  //
                           | std::views::reverse) {
     if (round_times[k][to_idx(l)][kVias] != invalid_delta) {
-      auto const base =
-          tt.internal_interval_days().from_ +
-          static_cast<int>(to_idx(make_base(tt, start_time))) * date::days{1};
+      auto const base = to_base_days(tt, start_time);
       auto end_time = delta_to_unix(base, round_times[k][to_idx(l)][0]);
       return {
           .duration_ = static_cast<delta_t>((end_time - start_time).count()),
