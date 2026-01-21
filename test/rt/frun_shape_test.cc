@@ -14,6 +14,7 @@
 #include "nigiri/loader/init_finish.h"
 #include "nigiri/common/delta_t.h"
 #include "nigiri/routing/one_to_all.h"
+#include "nigiri/routing/one_to_many.h"
 #include "nigiri/routing/query.h"
 #include "nigiri/rt/create_rt_timetable.h"
 #include "nigiri/rt/frun.h"
@@ -974,6 +975,59 @@ TEST(
         R"([{"idx":0,"firstDay":"2024-01-01","lastDay":"2024-01-01","noLocations":22,"noTrips":16,"transportsXDays":16}])",
         to_str(get_metrics(tt), tt));
   }
+
+  // One-to-Many, one offset for start, one offset per target
+  {
+    // A -> C, S, V
+    [[maybe_unused]] constexpr auto const kSearchDir = direction::kForward;
+    [[maybe_unused]] constexpr auto const kUnreachable =
+        kInvalidDelta<kSearchDir>;
+
+    auto const start_time =
+        unixtime_t{sys_days{2024_y / January / 1}} + 9_hours;
+    auto const q = routing::query{
+        .start_time_ = start_time,
+        .start_ = to_offsets("A"),
+        .destination_ = {{to_location_idx("C"), 0_minutes, 0U},
+                         {to_location_idx("S"), 0_minutes, 0U},
+                         {to_location_idx("V"), 0_minutes, 0U}}
+        // .start_ = {{to_location_idx("A"), 10_minutes, 0U}},
+    };
+    auto state = nigiri::routing::many_search_state{
+        {to_offsets("C"), to_offsets("S"), to_offsets("V")}};
+    // [[maybe_unused]] auto state = nigiri::routing::one_to_all<kSearchDir>(tt,
+    // &rtt, q);
+    auto const durations =
+        nigiri::routing::one_to_many<kSearchDir>(tt, &rtt, std::move(state), q);
+
+    EXPECT_EQ(durations, (std::vector<delta_t>{(2_hours).count(),
+                                               (2_hours + 15_minutes).count(),
+                                               (6_hours).count()}));
+    // EXPECT_EQ(durations, (std::vector{2_hours, 3_hours, 7_hours}));
+
+    // auto const durations = nigiri::routing::one_to_many<kSearchDir>(tt, &rtt,
+    // q);
+  }
+  // One-to-Many, many offsets per start / target
+  {
+    // (B, F, M) -> (H✔, N), (I, N+✔), (U), (C, D✔), (O, K, U✔), (K✔, U)
+  }
+  // One-to-Many, some targets unreachable
+  {
+    // F -> H, O
+  }
+  // One-to-Many, no offsets for some targets, ignore unreachable targets
+  {
+    // A -> (B, C✔), ∅, F
+  }
+  // One-to-Many backwards TODO
+  {
+    // TODO
+    // constexpr auto const kSearchDir = direction::kBackward;
+    // constexpr auto const kUnreachable = kInvalidDelta<kSearchDir>;
+  }
+  // TODO One-to-Many, fast reachable targets, stop computing early  (not
+  // is_reachable)
 }
 
 }  // namespace
