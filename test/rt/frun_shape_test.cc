@@ -979,7 +979,7 @@ TEST(
   // One-to-Many, one offset for start, one offset per target
   {
     // A -> C, S, V
-    [[maybe_unused]] constexpr auto const kSearchDir = direction::kForward;
+    constexpr auto const kSearchDir = direction::kForward;
     [[maybe_unused]] constexpr auto const kUnreachable =
         kInvalidDelta<kSearchDir>;
 
@@ -996,7 +996,46 @@ TEST(
   }
   // One-to-Many, many offsets per start / target
   {
-    // (B, F, M) -> (H✔, N), (I, N+✔), (U), (C, D✔), (O, K, U✔), (K✔, U)
+    // (B, F, M) -> (H✔, N), (I, N1✔), (U), (C, D✔), (O, K, U✔), (K✔, U)
+    constexpr auto const kSearchDir = direction::kForward;
+    [[maybe_unused]] constexpr auto const kUnreachable =
+        kInvalidDelta<kSearchDir>;
+
+    auto const start_time =
+        unixtime_t{sys_days{2024_y / January / 1}} + 9_hours;
+    auto const q = routing::query{
+        .start_time_ = start_time,
+        .start_ = {{to_location_idx("B"), 60_minutes, 0U},
+                   {to_location_idx("F"), 25_minutes, 0U},
+                   {to_location_idx("A"), 0_minutes, 0U},  // TODO Test only
+                   {to_location_idx("M"), 0_minutes, 0U}}};
+    auto state = nigiri::routing::many_search_state{
+        {{{to_location_idx("H"), 10_minutes, 0U},
+          {to_location_idx("N"), 80_minutes, 0U}},
+         {{to_location_idx("I"), 0_minutes, 0U},  // Same as "N"
+          {to_location_idx("N1"), 15_minutes, 0U}},
+         {{to_location_idx("I"), 45_minutes, 0U},  // Same as "N"
+          {to_location_idx("N1"), 15_minutes, 0U}},
+         {{to_location_idx("U"), 5_minutes, 0U}},
+         {{to_location_idx("C"), 80_minutes, 0U},
+          {to_location_idx("D"), 10_minutes, 0U}},
+         {{to_location_idx("O"), 2_hours + 52_minutes, 0U},
+          {to_location_idx("K"), 51_minutes, 0U},
+          {to_location_idx("U"), 50_minutes, 0U}},
+         {{to_location_idx("K"), 6_minutes, 0U},
+          {to_location_idx("U"), 67_minutes, 0U}}}};
+    auto const durations =
+        nigiri::routing::one_to_many<kSearchDir>(tt, &rtt, std::move(state), q);
+
+    EXPECT_EQ(durations, (std::vector{
+                             3_hours + 10_minutes,
+                             2_hours + 2_minutes,
+                             2_hours + 45_minutes,
+                             5_hours + 5_minutes,
+                             3_hours + 10_minutes,
+                             5_hours + 50_minutes,
+                             6_hours + 6_minutes,
+                         }));
   }
   // One-to-Many, some targets unreachable
   {

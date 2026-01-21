@@ -41,7 +41,6 @@ many_search_state::many_search_state(
     : dest_offsets_{std::move(offsets)},
       best_{std::vector(dest_offsets_.size(),
                         std::numeric_limits<delta_t>::max())},
-      // best_{std::vector(dest_offsets_.size(), duration_t::max())},
       worst_{} {
   for (auto const [idx, dest] : utl::enumerate(dest_offsets_)) {
     for (auto const& offset : dest) {
@@ -57,6 +56,9 @@ void many_search_state::update([[maybe_unused]] unsigned const k,
                                nigiri::location_idx_t::value_t const l,
                                // duration_t const costs) {
                                delta_t const costs) {
+  if (costs == std::numeric_limits<delta_t>::max()) {
+    return;
+  }
   auto const loc = location_idx_t{l};
   auto const indices = lookup_.find(loc);
   utl::verify(indices != lookup_.end(), "Location {} unreachable by offsets",
