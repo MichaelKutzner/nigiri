@@ -15,6 +15,8 @@
 namespace nigiri::routing {
 
 constexpr auto const kVias = via_offset_t{0U};
+constexpr auto const kMaxDelta = std::numeric_limits<delta_t>::max();
+constexpr auto const kMaxDuration = duration_t::max();
 
 bitvec to_dest(raptor_state::many_search const& state,
                unsigned int const n_locations) {
@@ -32,7 +34,9 @@ std::vector<duration_t> to_durations(raptor_state::many_search const& state,
   auto const base_days = to_base_days(tt, start_time);
   return utl::transform_to<std::vector<duration_t>>(
       state.best_, [&](delta_t const d) -> duration_t {
-        return delta_to_unix(base_days, d) - start_time;
+        return d == kMaxDelta ? kMaxDuration
+                              : static_cast<duration_t>(
+                                    delta_to_unix(base_days, d) - start_time);
       });
 }
 

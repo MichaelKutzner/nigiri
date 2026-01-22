@@ -16,6 +16,7 @@
 #include "nigiri/routing/one_to_all.h"
 #include "nigiri/routing/one_to_many.h"
 #include "nigiri/routing/query.h"
+#include "nigiri/routing/raptor/raptor_state.h"
 #include "nigiri/rt/create_rt_timetable.h"
 #include "nigiri/rt/frun.h"
 #include "nigiri/rt/gtfsrt_resolve_run.h"
@@ -220,6 +221,8 @@ TRIP_14,12:15:00,12:15:00,S,2,0,0,
 TRIP_14,13:15:00,13:15:00,W,3,0,0,
 
 )"sv;
+
+constexpr auto const kMaxDuration = duration_t::max();
 
 TEST(
     rt,
@@ -980,8 +983,6 @@ TEST(
   {
     // A -> C, S, V
     constexpr auto const kSearchDir = direction::kForward;
-    [[maybe_unused]] constexpr auto const kUnreachable =
-        kInvalidDelta<kSearchDir>;
 
     auto const start_time =
         unixtime_t{sys_days{2024_y / January / 1}} + 9_hours;
@@ -989,6 +990,7 @@ TEST(
         routing::query{.start_time_ = start_time, .start_ = to_offsets("A")};
     auto dest_offsets =
         std::vector{{to_offsets("C"), to_offsets("S"), to_offsets("V")}};
+
     auto const durations =
         nigiri::routing::one_to_many<kSearchDir>(tt, &rtt, dest_offsets, q);
 
@@ -998,17 +1000,14 @@ TEST(
   {
     // (B, F, M) -> (H✔, N), (I, N1✔), (U), (C, D✔), (O, K, U✔), (K✔, U)
     constexpr auto const kSearchDir = direction::kForward;
-    [[maybe_unused]] constexpr auto const kUnreachable =
-        kInvalidDelta<kSearchDir>;
 
     auto const start_time =
         unixtime_t{sys_days{2024_y / January / 1}} + 9_hours;
-    auto const q = routing::query{
-        .start_time_ = start_time,
-        .start_ = {{to_location_idx("B"), 60_minutes, 0U},
-                   {to_location_idx("F"), 25_minutes, 0U},
-                   {to_location_idx("A"), 0_minutes, 0U},  // TODO Test only
-                   {to_location_idx("M"), 0_minutes, 0U}}};
+    auto const q =
+        routing::query{.start_time_ = start_time,
+                       .start_ = {{to_location_idx("B"), 60_minutes, 0U},
+                                  {to_location_idx("F"), 25_minutes, 0U},
+                                  {to_location_idx("M"), 0_minutes, 0U}}};
     auto dest_offsets = std::vector<std::vector<nigiri::routing::offset>>{
         {{{to_location_idx("H"), 10_minutes, 0U},
           {to_location_idx("N"), 80_minutes, 0U}},
@@ -1040,6 +1039,18 @@ TEST(
   // One-to-Many, some targets unreachable
   {
     // F -> H, O
+    constexpr auto const kSearchDir = direction::kForward;
+
+    auto const start_time =
+        unixtime_t{sys_days{2024_y / January / 1}} + 10_hours;
+    auto const q =
+        routing::query{.start_time_ = start_time, .start_ = to_offsets("F")};
+    auto dest_offsets = std::vector{{to_offsets("H"), to_offsets("O")}};
+
+    auto const durations =
+        nigiri::routing::one_to_many<kSearchDir>(tt, &rtt, dest_offsets, q);
+
+    EXPECT_EQ(durations, (std::vector{2_hours, kMaxDuration}));
   }
   // One-to-Many, no offsets for some targets, ignore unreachable targets
   {
