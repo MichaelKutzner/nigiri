@@ -989,8 +989,8 @@ TEST(
         routing::query{.start_time_ = start_time, .start_ = to_offsets("A")};
     auto dest_offsets =
         std::vector{{to_offsets("C"), to_offsets("S"), to_offsets("V")}};
-    auto const durations = nigiri::routing::one_to_many<kSearchDir>(
-        tt, &rtt, std::move(dest_offsets), q);
+    auto const durations =
+        nigiri::routing::one_to_many<kSearchDir>(tt, &rtt, dest_offsets, q);
 
     EXPECT_EQ(durations, (std::vector{2_hours, 2_hours + 15_minutes, 6_hours}));
   }
@@ -1024,8 +1024,8 @@ TEST(
           {to_location_idx("U"), 50_minutes, 0U}},
          {{to_location_idx("K"), 6_minutes, 0U},
           {to_location_idx("U"), 67_minutes, 0U}}}};
-    auto const durations = nigiri::routing::one_to_many<kSearchDir>(
-        tt, &rtt, std::move(dest_offsets), q);
+    auto const durations =
+        nigiri::routing::one_to_many<kSearchDir>(tt, &rtt, dest_offsets, q);
 
     EXPECT_EQ(durations, (std::vector{
                              3_hours + 10_minutes,

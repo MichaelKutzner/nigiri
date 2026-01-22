@@ -135,9 +135,9 @@ struct raptor {
         is_wheelchair_{is_wheelchair},
         transfer_time_settings_{tts} {
     assert(Vias == via_stops_.size());
-    utl::verify(SearchMode != search_mode::kOneToMany ||
-                    state_.many_.dest_offsets_.size() > 0U,
-                "No destinations for OneToMany search");
+    utl::verify(
+        SearchMode != search_mode::kOneToMany || state_.many_ != nullptr,
+        "Missing many_state for OneToMany search");
     reset_arrivals();
     if (!dist_to_end_.empty()) {
       // only used for intermodal queries (dist_to_dest != empty)
@@ -1223,7 +1223,7 @@ private:
       return;
     }
     if constexpr (SearchMode == search_mode::kOneToMany) {
-      state_.many_.update(k, l, t);
+      state_.many_->update(k, l, t);
       return;
     }
     for (auto i = k; i != time_at_dest_.size(); ++i) {

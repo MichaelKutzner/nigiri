@@ -40,7 +40,7 @@ template <direction SearchDir, bool Rt>
 std::vector<duration_t> one_to_many(
     timetable const& tt,
     rt_timetable const* rtt,
-    std::vector<std::vector<offset>>&& dest_offsets,
+    std::vector<std::vector<offset>> const& dest_offsets,
     query const& q) {
   utl::verify(std::holds_alternative<unixtime_t>(q.start_time_),
               "Start-time must be a time point (unixtime_t)");
@@ -48,9 +48,10 @@ std::vector<duration_t> one_to_many(
               "One-to-All search not supported with vias");
   auto const& start_time = std::get<unixtime_t>(q.start_time_);
 
-  auto state = raptor_state{std::move(dest_offsets)};
+  auto many = raptor_state::many_search{dest_offsets};
+  auto state = raptor_state{many};
 
-  auto is_dest = to_dest(state.many_, tt.n_locations());
+  auto is_dest = to_dest(many, tt.n_locations());
   auto is_via = std::array<bitvec, kMaxVias>{};
   auto dist_to_dest = std::vector<std::uint16_t>{};
   auto lb = std::vector<std::uint16_t>(tt.n_locations(), 0U);
@@ -76,31 +77,31 @@ std::vector<duration_t> one_to_many(
 
   run_raptor(std::move(algo), tt, start_time, q);
 
-  return to_durations(state.many_, tt, start_time);
+  return to_durations(many, tt, start_time);
 }
 
 template <direction SearchDir>
 std::vector<duration_t> one_to_many(
     timetable const& tt,
     rt_timetable const* rtt,
-    std::vector<std::vector<offset>>&& dest_offsets,
+    std::vector<std::vector<offset>> const& dest_offsets,
     query const& q) {
   if (rtt == nullptr) {
-    return one_to_many<SearchDir, false>(tt, rtt, std::move(dest_offsets), q);
+    return one_to_many<SearchDir, false>(tt, rtt, dest_offsets, q);
   } else {
-    return one_to_many<SearchDir, true>(tt, rtt, std::move(dest_offsets), q);
+    return one_to_many<SearchDir, true>(tt, rtt, dest_offsets, q);
   }
 }
 
 template std::vector<duration_t> one_to_many<direction::kForward>(
     timetable const&,
     rt_timetable const*,
-    std::vector<std::vector<offset>>&& dest_offsets,
+    std::vector<std::vector<offset>> const& dest_offsets,
     query const&);
 template std::vector<duration_t> one_to_many<direction::kBackward>(
     timetable const&,
     rt_timetable const*,
-    std::vector<std::vector<offset>>&& dest_offsets,
+    std::vector<std::vector<offset>> const& dest_offsets,
     query const&);
 
 }  // namespace nigiri::routing

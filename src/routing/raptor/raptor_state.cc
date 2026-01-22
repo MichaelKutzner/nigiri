@@ -32,7 +32,7 @@ void update_worst(raptor_state::many_search& state) {
 }
 
 raptor_state::many_search::many_search(
-    std::vector<std::vector<offset>>&& dest_offsets)
+    std::vector<std::vector<offset>> const& dest_offsets)
     : dest_offsets_{dest_offsets},
       best_{std::vector(dest_offsets_.size(),
                         std::numeric_limits<delta_t>::max())},
