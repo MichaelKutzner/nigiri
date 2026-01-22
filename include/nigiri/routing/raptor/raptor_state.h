@@ -12,6 +12,8 @@
 #include "nigiri/common/delta_t.h"
 #include "nigiri/common/flat_matrix_view.h"
 #include "nigiri/routing/limits.h"
+#include "nigiri/routing/query.h"
+#include "nigiri/types.h"
 
 namespace nigiri {
 struct timetable;
@@ -20,12 +22,36 @@ struct timetable;
 namespace nigiri::routing {
 
 struct raptor_state {
+  struct many_search {
+    struct worst {
+      std::size_t offset_{0U};
+      delta_t delta_{std::numeric_limits<delta_t>::max()};  // TODO Fix value
+    };
+
+    many_search(std::vector<std::vector<offset>>&&);
+    many_search() = default;
+    many_search(many_search const&) = delete;
+    many_search& operator=(many_search const&) = delete;
+    many_search(many_search&&) = default;
+    ~many_search() = default;
+    many_search& operator=(many_search&&) = default;
+    void update(unsigned k, location_idx_t::value_t, delta_t);
+
+    std::vector<std::vector<offset>> dest_offsets_{};
+    std::vector<delta_t> best_{};
+    nigiri::hash_map<nigiri::location_idx_t, std::vector<std::size_t>>
+        lookup_{};
+    worst worst_{};
+  };
+
   raptor_state() = default;
   raptor_state(raptor_state const&) = delete;
   raptor_state& operator=(raptor_state const&) = delete;
   raptor_state(raptor_state&&) = default;
   raptor_state& operator=(raptor_state&&) = default;
   ~raptor_state() = default;
+  raptor_state(std::vector<std::vector<offset>>&& dest_offsets)
+      : many_{std::move(dest_offsets)} {}
 
   raptor_state& resize(unsigned n_locations,
                        unsigned n_routes,
@@ -75,6 +101,7 @@ struct raptor_state {
   }
 
   unsigned n_locations_{};
+  many_search many_;
   std::vector<delta_t> tmp_storage_;
   std::vector<delta_t> best_storage_;
   std::vector<delta_t> round_times_storage_;

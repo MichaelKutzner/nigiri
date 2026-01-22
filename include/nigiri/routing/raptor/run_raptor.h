@@ -1,5 +1,6 @@
 #pragma once
 
+#include "nigiri/for_each_meta.h"
 #include "nigiri/routing/raptor/raptor.h"
 #include "nigiri/types.h"
 

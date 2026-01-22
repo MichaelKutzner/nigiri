@@ -6,7 +6,6 @@
 #include "nigiri/common/linear_lower_bound.h"
 #include "nigiri/routing/journey.h"
 #include "nigiri/routing/limits.h"
-#include "nigiri/routing/many_search_state.h"
 #include "nigiri/routing/pareto_set.h"
 #include "nigiri/routing/raptor/debug.h"
 #include "nigiri/routing/raptor/raptor_state.h"
@@ -112,9 +111,7 @@ struct raptor {
       bool const require_bike_transport,
       bool const require_car_transport,
       bool const is_wheelchair,
-      transfer_time_settings const& tts,
-      many_search_state* ms_state = nullptr  // TODO Merge with raptor_state?
-      )
+      transfer_time_settings const& tts)
       : tt_{tt},
         rtt_{rtt},
         n_days_{tt_.internal_interval_days().size().count()},
@@ -131,7 +128,6 @@ struct raptor {
         td_dist_to_end_{td_dist_to_dest},
         lb_{lb},
         via_stops_{via_stops},
-        ms_state_(ms_state),
         base_{base},
         allowed_claszes_{allowed_claszes},
         require_bike_transport_{require_bike_transport},
@@ -139,8 +135,9 @@ struct raptor {
         is_wheelchair_{is_wheelchair},
         transfer_time_settings_{tts} {
     assert(Vias == via_stops_.size());
-    utl::verify(SearchMode != search_mode::kOneToMany || ms_state_ != nullptr,
-                "Requires many_search_state for OneToMany");
+    utl::verify(SearchMode != search_mode::kOneToMany ||
+                    state_.many_.dest_offsets_.size() > 0U,
+                "No destinations for OneToMany search");
     reset_arrivals();
     if (!dist_to_end_.empty()) {
       // only used for intermodal queries (dist_to_dest != empty)
@@ -1226,7 +1223,7 @@ private:
       return;
     }
     if constexpr (SearchMode == search_mode::kOneToMany) {
-      ms_state_->update(k, l, t);
+      state_.many_.update(k, l, t);
       return;
     }
     for (auto i = k; i != time_at_dest_.size(); ++i) {
@@ -1270,7 +1267,6 @@ private:
   std::vector<std::uint16_t> const& lb_;
   std::vector<via_stop> const& via_stops_;
   std::array<delta_t, kMaxTransfers + 2> time_at_dest_;
-  many_search_state* ms_state_;
   day_idx_t base_;
   raptor_stats stats_;
   clasz_mask_t allowed_claszes_;
