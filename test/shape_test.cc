@@ -18,6 +18,22 @@ using namespace std::string_view_literals;
 
 namespace {
 
+// Stops and trip geometry
+//
+// .       .       .     /-N-\     K       .       .
+//                    /-/     \-\  |
+// .       .       M-/     .     \-O-\     .       .
+//                 |               |  \-\
+// .       .       L       .       |     \-J       .
+//                                 |
+// .       .       .    /----------G       .       .
+//             /--C----/           |
+// B----------/    .       .       |       .       I
+// |                               |               |
+// |       .       .       .     /-F       .       H
+// |                          /-/
+// A       .       D-------E-/     .       .       .
+
 constexpr auto const kWithShapes = R"(
 # agency.txt
 agency_id,agency_name,agency_url,agency_timezone
