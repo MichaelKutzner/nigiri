@@ -29,7 +29,7 @@ struct raptor_state {
     };
 
     many_search(std::vector<std::vector<offset>> const&);
-    void update(unsigned k, location_idx_t::value_t, delta_t);
+    delta_t update(unsigned k, location_idx_t::value_t, delta_t);
 
     std::vector<std::vector<offset>> const& dest_offsets_{};
     std::vector<delta_t> best_{};

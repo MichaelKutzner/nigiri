@@ -1218,13 +1218,12 @@ private:
 
   void update_time_at_dest(unsigned const k,
                            location_idx_t::value_t const l,
-                           delta_t const t) {
+                           delta_t t) {
     if constexpr (SearchMode == search_mode::kOneToAll) {
       return;
     }
     if constexpr (SearchMode == search_mode::kOneToMany) {
-      state_.many_->update(k, l, t);
-      return;
+      t = state_.many_->update(k, l, t);
     }
     for (auto i = k; i != time_at_dest_.size(); ++i) {
       time_at_dest_[i] = get_best(time_at_dest_[i], t);

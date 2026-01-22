@@ -1,5 +1,7 @@
 #pragma once
 
+#include <functional>
+#include <optional>
 #include <vector>
 
 #include "nigiri/routing/query.h"
@@ -14,6 +16,7 @@ std::vector<duration_t> one_to_many(
     timetable const& tt,
     rt_timetable const* rtt,
     std::vector<std::vector<offset>> const& dest_offsets,
-    query const& q);
+    query const& q,
+    std::optional<std::function<void(raptor_state const&)>> = std::nullopt);
 
 }  // namespace nigiri::routing

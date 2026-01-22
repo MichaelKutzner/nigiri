@@ -1041,6 +1041,34 @@ TEST(
   // One-to-Many, no offsets for some targets, ignore unreachable targets
   {
     // A -> (B, C✔), ∅, F
+    constexpr auto const kSearchDir = direction::kForward;
+
+    constexpr auto const kUnreachable = kInvalidDelta<kSearchDir>;
+    enum class Reachable { unset, reachable, unreachable };
+    auto reachable_test = Reachable::unset;
+    auto const check_abort_cb = [&](routing::raptor_state const& state) {
+      // Raptor should stop before K is reached
+      reachable_test = is_reachable(state, to_location_idx("K"), kUnreachable)
+                           ? Reachable::reachable
+                           : Reachable::unreachable;
+    };
+
+    auto const start_time =
+        unixtime_t{sys_days{2024_y / January / 1}} + 9_hours;
+    auto const q =
+        routing::query{.start_time_ = start_time, .start_ = to_offsets("A")};
+    auto dest_offsets = std::vector<std::vector<nigiri::routing::offset>>{
+        {{{to_location_idx("B"), 80_minutes, 0U},
+          {to_location_idx("C"), 10_minutes, 0U}},
+         {},  // Unreachable
+         to_offsets("F")}};
+
+    auto const durations = nigiri::routing::one_to_many<kSearchDir>(
+        tt, &rtt, dest_offsets, q, check_abort_cb);
+
+    EXPECT_EQ(durations,
+              (std::vector{2_hours + 10_minutes, kMaxDuration, 1_hours}));
+    EXPECT_EQ(reachable_test, Reachable::unreachable);
   }
   // One-to-Many backwards TODO
   {

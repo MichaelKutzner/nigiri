@@ -47,11 +47,11 @@ raptor_state::many_search::many_search(
   update_worst(*this);
 }
 
-void raptor_state::many_search::update([[maybe_unused]] unsigned const k,
-                                       location_idx_t::value_t const l,
-                                       delta_t const costs) {
+delta_t raptor_state::many_search::update([[maybe_unused]] unsigned const k,
+                                          location_idx_t::value_t const l,
+                                          delta_t const costs) {
   if (costs == std::numeric_limits<delta_t>::max()) {
-    return;
+    return worst_.delta_;
   }
   auto const loc = location_idx_t{l};
   auto const indices = lookup_.find(loc);
@@ -76,6 +76,7 @@ void raptor_state::many_search::update([[maybe_unused]] unsigned const k,
   if (need_update) {
     update_worst(*this);
   }
+  return worst_.delta_;
 }
 
 raptor_state& raptor_state::resize(unsigned const n_locations,

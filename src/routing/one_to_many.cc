@@ -1,16 +1,11 @@
 #include "nigiri/routing/one_to_many.h"
 
-#include <vector>
-
 #include "utl/to_vec.h"
 #include "utl/verify.h"
 
 #include "nigiri/common/delta_t.h"
 #include "nigiri/routing/one_to_all.h"
-#include "nigiri/routing/query.h"
-#include "nigiri/routing/raptor/raptor_state.h"
 #include "nigiri/routing/raptor/run_raptor.h"
-#include "nigiri/types.h"
 
 namespace nigiri::routing {
 
@@ -45,7 +40,8 @@ std::vector<duration_t> one_to_many(
     timetable const& tt,
     rt_timetable const* rtt,
     std::vector<std::vector<offset>> const& dest_offsets,
-    query const& q) {
+    query const& q,
+    std::optional<std::function<void(raptor_state const&)>> cb) {
   utl::verify(std::holds_alternative<unixtime_t>(q.start_time_),
               "Start-time must be a time point (unixtime_t)");
   utl::verify(q.via_stops_.empty(),
@@ -81,6 +77,10 @@ std::vector<duration_t> one_to_many(
 
   run_raptor(std::move(algo), tt, start_time, q);
 
+  if (cb) {
+    cb->operator()(state);
+  }
+
   return to_durations(many, tt, start_time);
 }
 
@@ -89,11 +89,12 @@ std::vector<duration_t> one_to_many(
     timetable const& tt,
     rt_timetable const* rtt,
     std::vector<std::vector<offset>> const& dest_offsets,
-    query const& q) {
+    query const& q,
+    std::optional<std::function<void(raptor_state const&)>> cb) {
   if (rtt == nullptr) {
-    return one_to_many<SearchDir, false>(tt, rtt, dest_offsets, q);
+    return one_to_many<SearchDir, false>(tt, rtt, dest_offsets, q, cb);
   } else {
-    return one_to_many<SearchDir, true>(tt, rtt, dest_offsets, q);
+    return one_to_many<SearchDir, true>(tt, rtt, dest_offsets, q, cb);
   }
 }
 
@@ -101,11 +102,13 @@ template std::vector<duration_t> one_to_many<direction::kForward>(
     timetable const&,
     rt_timetable const*,
     std::vector<std::vector<offset>> const& dest_offsets,
-    query const&);
+    query const& q,
+    std::optional<std::function<void(raptor_state const&)>>);
 template std::vector<duration_t> one_to_many<direction::kBackward>(
     timetable const&,
     rt_timetable const*,
     std::vector<std::vector<offset>> const& dest_offsets,
-    query const&);
+    query const& q,
+    std::optional<std::function<void(raptor_state const&)>>);
 
 }  // namespace nigiri::routing
