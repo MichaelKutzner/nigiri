@@ -998,7 +998,7 @@ TEST(
   }
   // One-to-Many, many offsets per start / target
   {
-    // (B, F, M) -> (H✔, N), (I, N1✔), (U), (C, D✔), (O, K, U✔), (K✔, U)
+    // (B, F, M) -> (H✔, N), (I, N1✔), (U), (C, D✔), (O, K, U✔), (Q✘), (K✔, U)
     constexpr auto const kSearchDir = direction::kForward;
 
     auto const start_time =
@@ -1021,6 +1021,7 @@ TEST(
          {{to_location_idx("O"), 2_hours + 52_minutes, 0U},
           {to_location_idx("K"), 51_minutes, 0U},
           {to_location_idx("U"), 50_minutes, 0U}},
+         {{to_location_idx("Q"), 1_minutes, 0U}},  // Unreachable
          {{to_location_idx("K"), 6_minutes, 0U},
           {to_location_idx("U"), 67_minutes, 0U}}}};
     auto const durations =
@@ -1033,24 +1034,9 @@ TEST(
                              5_hours + 5_minutes,
                              3_hours + 10_minutes,
                              5_hours + 50_minutes,
+                             kMaxDuration,
                              6_hours + 6_minutes,
                          }));
-  }
-  // One-to-Many, some targets unreachable
-  {
-    // F -> H, O
-    constexpr auto const kSearchDir = direction::kForward;
-
-    auto const start_time =
-        unixtime_t{sys_days{2024_y / January / 1}} + 10_hours;
-    auto const q =
-        routing::query{.start_time_ = start_time, .start_ = to_offsets("F")};
-    auto dest_offsets = std::vector{{to_offsets("H"), to_offsets("O")}};
-
-    auto const durations =
-        nigiri::routing::one_to_many<kSearchDir>(tt, &rtt, dest_offsets, q);
-
-    EXPECT_EQ(durations, (std::vector{2_hours, kMaxDuration}));
   }
   // One-to-Many, no offsets for some targets, ignore unreachable targets
   {
