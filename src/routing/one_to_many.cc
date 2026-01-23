@@ -6,32 +6,35 @@
 #include "nigiri/common/delta_t.h"
 #include "nigiri/routing/one_to_all.h"
 #include "nigiri/routing/raptor/run_raptor.h"
+#include "nigiri/types.h"
 
 namespace nigiri::routing {
 
 constexpr auto const kVias = via_offset_t{0U};
-constexpr auto const kMaxDelta = std::numeric_limits<delta_t>::max();
 constexpr auto const kMaxDuration = duration_t::max();
 
-bitvec to_dest(raptor_state::many_search const& state,
+bitvec to_dest(raptor_state::many_search const& many,
                unsigned int const n_locations) {
   auto d = bitvec{};
   d.resize(n_locations);
-  for (auto const& l : state.lookup_) {
+  for (auto const& l : many.lookup_) {
     d.set(to_idx(l.first), true);
   }
   return d;
 }
 
-std::vector<duration_t> to_durations(raptor_state::many_search const& state,
+template <direction SearchDir>
+std::vector<duration_t> to_durations(raptor_state::many_search const& many,
                                      timetable const& tt,
                                      unixtime_t const start_time) {
   auto const base_days = to_base_days(tt, start_time);
   return utl::transform_to<std::vector<duration_t>>(
-      state.best_, [&](delta_t const d) -> duration_t {
-        return d == kMaxDelta ? kMaxDuration
-                              : static_cast<duration_t>(
-                                    delta_to_unix(base_days, d) - start_time);
+      many.best_, [&](delta_t const d) -> duration_t {
+        return d == kInvalidDelta<SearchDir>
+                   ? kMaxDuration
+                   : static_cast<duration_t>(
+                         (many.dir_ == direction::kForward ? 1 : -1) *
+                         (delta_to_unix(base_days, d) - start_time));
       });
 }
 
@@ -48,7 +51,7 @@ std::vector<duration_t> one_to_many(
               "One-to-All search not supported with vias");
   auto const& start_time = std::get<unixtime_t>(q.start_time_);
 
-  auto many = raptor_state::many_search{dest_offsets};
+  auto many = raptor_state::many_search{dest_offsets, SearchDir};
   auto state = raptor_state{many};
 
   auto is_dest = to_dest(many, tt.n_locations());
@@ -81,7 +84,7 @@ std::vector<duration_t> one_to_many(
     cb->operator()(state);
   }
 
-  return to_durations(many, tt, start_time);
+  return to_durations<SearchDir>(many, tt, start_time);
 }
 
 template <direction SearchDir>

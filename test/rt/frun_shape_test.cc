@@ -1107,11 +1107,45 @@ TEST(
               (std::vector{2_hours + 10_minutes, kMaxDuration, 1_hours}));
     EXPECT_EQ(reachable_test, Reachable::unreachable);
   }
-  // One-to-Many backwards TODO
+  // One-to-Many backward
   {
-    // TODO
-    // constexpr auto const kSearchDir = direction::kBackward;
-    // constexpr auto const kUnreachable = kInvalidDelta<kSearchDir>;
+    // (J, V) <- S, F, (F, M✔), ((C, D)✘), (O✘), ∅, N, (S✔, H), A
+    constexpr auto const kSearchDir = direction::kBackward;
+
+    auto const start_time =
+        unixtime_t{sys_days{2024_y / January / 1}} + 15_hours;
+    auto const q =
+        routing::query{.start_time_ = start_time,
+                       .start_ = {{to_location_idx("J"), 30_minutes, 0U},
+                                  {to_location_idx("V"), 0_minutes, 0U}}};
+    auto dest_offsets = std::vector<std::vector<nigiri::routing::offset>>{
+        {to_offsets("S"),
+         {{to_location_idx("F"), 20_minutes, 0U}},
+         {{to_location_idx("F"), 20_minutes, 0U},
+          {to_location_idx("M"), 0_minutes, 0U}},
+         {{to_location_idx("C"), 0_minutes, 0U},
+          {to_location_idx("D"), 5_minutes, 0U}},  // Unreachable
+         to_offsets("O"),  // Unreachable
+         {},
+         to_offsets("N"),
+         {{to_location_idx("S"), 15_minutes, 0U},
+          {to_location_idx("H"), 20_minutes, 0U}},
+         {{to_location_idx("A"), 30_minutes, 0U}}}};
+
+    auto const durations =
+        nigiri::routing::one_to_many<kSearchDir>(tt, &rtt, dest_offsets, q);
+
+    EXPECT_EQ(durations, (std::vector{
+                             3_hours,
+                             5_hours + 5_minutes,
+                             5_hours,
+                             kMaxDuration,
+                             kMaxDuration,
+                             kMaxDuration,
+                             2_hours + 2_minutes,
+                             3_hours + 15_minutes,
+                             6_hours + 30_minutes,
+                         }));
   }
   // TODO One-to-Many, fast reachable targets, stop computing early  (not
   // is_reachable)

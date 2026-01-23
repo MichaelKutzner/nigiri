@@ -1,4 +1,5 @@
 #include "nigiri/routing/raptor/raptor_state.h"
+#include "nigiri/loader/dir.h"
 
 #include <algorithm>
 #include <vector>
@@ -17,12 +18,30 @@
 
 namespace nigiri::routing {
 
+bool is_better(delta_t const a, delta_t const b, direction const dir) {
+  return dir == direction::kForward ? a < b : b < a;
+}
+
+delta_t dir(delta_t const a, direction const dir) {
+  return dir == direction::kForward ? a : (-1) * a;
+}
+
+delta_t max_delta(direction const dir) {
+  return dir == direction::kForward ? kInvalidDelta<direction::kForward>
+                                    : kInvalidDelta<direction::kBackward>;
+}
+
+delta_t min_delta(direction const dir) {
+  return dir == direction::kForward ? kInvalidDelta<direction::kBackward>
+                                    : kInvalidDelta<direction::kForward>;
+}
+
 void update_worst(raptor_state::many_search& state) {
   auto idx = std::size_t{0U};
-  state.worst_.delta_ = std::numeric_limits<delta_t>::min();
+  state.worst_.delta_ = min_delta(state.dir_);
   for (auto const [offs, best] : utl::zip(state.dest_offsets_, state.best_)) {
     if (!offs.empty()) {  // Ignore all entries without reachable location
-      if (best > state.worst_.delta_) {
+      if (is_better(state.worst_.delta_, best, state.dir_)) {
         state.worst_.delta_ = best;
         state.worst_.offset_ = idx;
       }
@@ -32,11 +51,11 @@ void update_worst(raptor_state::many_search& state) {
 }
 
 raptor_state::many_search::many_search(
-    std::vector<std::vector<offset>> const& dest_offsets)
+    std::vector<std::vector<offset>> const& dest_offsets, direction const dir)
     : dest_offsets_{dest_offsets},
-      best_{std::vector(dest_offsets_.size(),
-                        std::numeric_limits<delta_t>::max())},
-      worst_{} {
+      best_{std::vector(dest_offsets_.size(), max_delta(dir))},
+      worst_{},
+      dir_{dir} {
   for (auto const [idx, dest] : utl::enumerate(dest_offsets_)) {
     for (auto const& offset : dest) {
       utl::get_or_create(lookup_, offset.target(),
@@ -50,7 +69,7 @@ raptor_state::many_search::many_search(
 delta_t raptor_state::many_search::update([[maybe_unused]] unsigned const k,
                                           location_idx_t::value_t const l,
                                           delta_t const costs) {
-  if (costs == std::numeric_limits<delta_t>::max()) {
+  if (costs == max_delta(dir_)) {
     return worst_.delta_;
   }
   auto const loc = location_idx_t{l};
@@ -64,9 +83,9 @@ delta_t raptor_state::many_search::update([[maybe_unused]] unsigned const k,
         offsets, [&](offset const& offs) { return offs.target() == loc; });
     utl::verify(found != offsets.end(),
                 "Failed to find location {} for destination {}", loc, idx);
-    auto const total_costs = static_cast<delta_t>(
-        costs + found->duration().count());  // TODO Add direction
-    if (total_costs < best_[idx]) {
+    auto const total_costs =
+        static_cast<delta_t>(costs + dir(found->duration().count(), dir_));
+    if (is_better(total_costs, best_[idx], dir_)) {
       best_[idx] = total_costs;
       if (worst_.offset_ == idx) {
         need_update = true;

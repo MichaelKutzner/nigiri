@@ -28,7 +28,7 @@ struct raptor_state {
       delta_t delta_{std::numeric_limits<delta_t>::max()};  // TODO Fix value
     };
 
-    many_search(std::vector<std::vector<offset>> const&);
+    many_search(std::vector<std::vector<offset>> const&, direction);
     delta_t update(unsigned k, location_idx_t::value_t, delta_t);
 
     std::vector<std::vector<offset>> const& dest_offsets_{};
@@ -36,6 +36,7 @@ struct raptor_state {
     nigiri::hash_map<nigiri::location_idx_t, std::vector<std::size_t>>
         lookup_{};
     worst worst_{};
+    direction dir_;
   };
 
   raptor_state() = default;
