@@ -63,10 +63,11 @@ std::vector<duration_t> one_to_many(
   run_raptor(std::move(algo), tt, start_time, q);
 
   if (cb) {
+    // Callback for tests
     cb->operator()(state);
   }
 
-  return many.durations(tt, start_time);
+  return many.durations(tt, start_time, q.max_travel_time_);
 }
 
 template <direction SearchDir>

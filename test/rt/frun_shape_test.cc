@@ -1147,8 +1147,6 @@ TEST(
                              6_hours + 30_minutes,
                          }));
   }
-  // TODO One-to-Many, fast reachable targets, stop computing early  (not
-  // is_reachable)
 }
 
 }  // namespace

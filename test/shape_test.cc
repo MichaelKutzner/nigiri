@@ -6,6 +6,7 @@
 #include "nigiri/loader/gtfs/load_timetable.h"
 #include "nigiri/loader/init_finish.h"
 #include "nigiri/common/span_cmp.h"
+#include "nigiri/routing/one_to_many.h"
 #include "nigiri/rt/create_rt_timetable.h"
 #include "nigiri/rt/gtfsrt_update.h"
 #include "nigiri/shapes_storage.h"
@@ -133,6 +134,11 @@ TEST(shape, single_trip_with_shape) {
                                nullptr, &shapes_data);
   loader::finalize(tt);
 
+  auto const to_location_idx = [&](std::string_view x) {
+    auto const src = source_idx_t{0};
+    return tt.locations_.location_id_to_idx_.at({x, src});
+  };
+
   // Testing shape 'Last', used by 'Trip 3' (index == 2)
   {
     auto const shape_by_trip_idx = shapes_data.get_shape(trip_idx_t{2});
@@ -196,6 +202,70 @@ TEST(shape, single_trip_with_shape) {
     // Shape contained in bounding box
     {
       EXPECT_FALSE(shapes_data.get_bounding_box(route_idx_t{4}, 0).has_value());
+    }
+
+    // One-to-Many with restrictions
+    {
+      {
+        // max_transfers
+        // M <- O✔, J✔, K✘, F✔, C✘
+        constexpr auto const kSearchDir = direction::kBackward;
+        constexpr auto const kMaxDuration = duration_t::max();
+
+        auto const start_time = unixtime_t{sys_days{2024_y / March / 1}} +
+                                12_hours;  // 30 minutes after arrival
+        auto const q =
+            routing::query{.start_time_ = start_time,
+                           .start_ = {{to_location_idx("L"), 0_minutes, 0U}},
+                           .max_transfers_ = 1};
+        auto dest_offsets = std::vector<std::vector<nigiri::routing::offset>>{
+            {{{to_location_idx("O"), 0_minutes, 0U}},
+             {{to_location_idx("J"), 0_minutes, 0U}},
+             {{to_location_idx("K"), 0_minutes, 0U}},  // Unreachable
+             {{to_location_idx("C"), 0_minutes, 0U}},  // Too many transfers
+             {{to_location_idx("F"), 0_minutes, 0U}}}};
+
+        auto const durations = nigiri::routing::one_to_many<kSearchDir>(
+            tt, nullptr, dest_offsets, q);
+
+        EXPECT_EQ(durations, (std::vector{
+                                 1_hours + 15_minutes,
+                                 1_hours + 30_minutes,
+                                 kMaxDuration,
+                                 kMaxDuration,
+                                 1_hours + 50_minutes,
+                             }));
+      }
+      {
+        // max_travel_time
+        // M <- O✔, J+offset(both cases), G✔, F✘
+        constexpr auto const kSearchDir = direction::kBackward;
+        constexpr auto const kMaxDuration = duration_t::max();
+
+        auto const start_time = unixtime_t{sys_days{2024_y / March / 1}} +
+                                12_hours;  // 30 minutes after arrival
+        auto const q =
+            routing::query{.start_time_ = start_time,
+                           .start_ = {{to_location_idx("L"), 0_minutes, 0U}},
+                           .max_travel_time_ = 1_hours + 40_minutes};
+        auto dest_offsets = std::vector<std::vector<nigiri::routing::offset>>{
+            {{{to_location_idx("O"), 0_minutes, 0U}},
+             {{to_location_idx("J"), 10_minutes, 0U}},  // <= max_travel_time
+             {{to_location_idx("J"), 11_minutes, 0U}},  // > max_travel_time
+             {{to_location_idx("G"), 0_minutes, 0U}},  // <= max_travel_time
+             {{to_location_idx("F"), 0_minutes, 0U}}}};
+
+        auto const durations = nigiri::routing::one_to_many<kSearchDir>(
+            tt, nullptr, dest_offsets, q);
+
+        EXPECT_EQ(durations, (std::vector{
+                                 1_hours + 15_minutes,
+                                 1_hours + 40_minutes,
+                                 kMaxDuration,
+                                 1_hours + 40_minutes,
+                                 kMaxDuration,
+                             }));
+      }
     }
   }
 }

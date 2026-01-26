@@ -104,15 +104,18 @@ delta_t raptor_state::many_search::update([[maybe_unused]] unsigned const k,
 }
 
 std::vector<duration_t> raptor_state::many_search::durations(
-    timetable const& tt, unixtime_t const start_time) const {
+    timetable const& tt,
+    unixtime_t const start_time,
+    duration_t const max_travel_time) const {
   auto const base_days = to_base_days(tt, start_time);
   return utl::transform_to<std::vector<duration_t>>(
       best_, [&](delta_t const d) -> duration_t {
-        return d == max_delta(dir_)
-                   ? kMaxDuration
-                   : static_cast<duration_t>(
-                         sgn(dir_) *
-                         (delta_to_unix(base_days, d) - start_time));
+        if (d == max_delta(dir_)) {
+          return kMaxDuration;
+        }
+        auto const duration = static_cast<duration_t>(
+            sgn(dir_) * (delta_to_unix(base_days, d) - start_time));
+        return duration <= max_travel_time ? duration : kMaxDuration;
       });
 }
 
