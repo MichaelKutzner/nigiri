@@ -29,10 +29,8 @@ void run_raptor(raptor<SearchDir, Rt, Vias, SearchMode>&& algo,
   // It will not find journeys with the same duration
   constexpr auto const kEpsilon = duration_t{1};
   auto const worst_time_at_dest =
-      start_time +
-      // TODO: Test if (sgn * (max) + 1) || (sgn * (max + 1)) ??
-      (SearchDir == direction::kForward ? 1 : -1) * (q.max_travel_time_) +
-      kEpsilon;
+      start_time + (SearchDir == direction::kForward ? 1 : -1) *
+                       (q.max_travel_time_ + kEpsilon);
 
   algo.execute(start_time, q.max_transfers_, worst_time_at_dest, q.prf_idx_,
                results);
