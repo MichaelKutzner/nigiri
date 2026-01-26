@@ -1,9 +1,7 @@
 #include "nigiri/routing/one_to_many.h"
 
-#include "utl/to_vec.h"
 #include "utl/verify.h"
 
-#include "nigiri/common/delta_t.h"
 #include "nigiri/routing/one_to_all.h"
 #include "nigiri/routing/raptor/run_raptor.h"
 #include "nigiri/types.h"
@@ -11,7 +9,6 @@
 namespace nigiri::routing {
 
 constexpr auto const kVias = via_offset_t{0U};
-constexpr auto const kMaxDuration = duration_t::max();
 
 bitvec to_dest(raptor_state::many_search const& many,
                unsigned int const n_locations) {
@@ -21,21 +18,6 @@ bitvec to_dest(raptor_state::many_search const& many,
     d.set(to_idx(l.first), true);
   }
   return d;
-}
-
-template <direction SearchDir>
-std::vector<duration_t> to_durations(raptor_state::many_search const& many,
-                                     timetable const& tt,
-                                     unixtime_t const start_time) {
-  auto const base_days = to_base_days(tt, start_time);
-  return utl::transform_to<std::vector<duration_t>>(
-      many.best_, [&](delta_t const d) -> duration_t {
-        return d == kInvalidDelta<SearchDir>
-                   ? kMaxDuration
-                   : static_cast<duration_t>(
-                         (many.dir_ == direction::kForward ? 1 : -1) *
-                         (delta_to_unix(base_days, d) - start_time));
-      });
 }
 
 template <direction SearchDir, bool Rt>
@@ -84,7 +66,7 @@ std::vector<duration_t> one_to_many(
     cb->operator()(state);
   }
 
-  return to_durations<SearchDir>(many, tt, start_time);
+  return many.durations(tt, start_time);
 }
 
 template <direction SearchDir>

@@ -1,5 +1,4 @@
 #include "nigiri/routing/raptor/raptor_state.h"
-#include "nigiri/loader/dir.h"
 
 #include <algorithm>
 #include <vector>
@@ -9,14 +8,18 @@
 #include "utl/enumerate.h"
 #include "utl/get_or_create.h"
 #include "utl/helpers/algorithm.h"
+#include "utl/to_vec.h"
 #include "utl/zip.h"
 
 #include "nigiri/common/delta_t.h"
 #include "nigiri/routing/limits.h"
+#include "nigiri/routing/one_to_all.h"
 #include "nigiri/timetable.h"
 #include "nigiri/types.h"
 
 namespace nigiri::routing {
+
+constexpr auto const kMaxDuration = duration_t::max();
 
 bool is_better(delta_t const a, delta_t const b, direction const dir) {
   return dir == direction::kForward ? a < b : b < a;
@@ -25,6 +28,8 @@ bool is_better(delta_t const a, delta_t const b, direction const dir) {
 delta_t dir(delta_t const a, direction const dir) {
   return dir == direction::kForward ? a : (-1) * a;
 }
+
+delta_t sgn(direction const dir) { return dir == direction::kForward ? 1 : -1; }
 
 delta_t max_delta(direction const dir) {
   return dir == direction::kForward ? kInvalidDelta<direction::kForward>
@@ -96,6 +101,19 @@ delta_t raptor_state::many_search::update([[maybe_unused]] unsigned const k,
     update_worst(*this);
   }
   return worst_.delta_;
+}
+
+std::vector<duration_t> raptor_state::many_search::durations(
+    timetable const& tt, unixtime_t const start_time) const {
+  auto const base_days = to_base_days(tt, start_time);
+  return utl::transform_to<std::vector<duration_t>>(
+      best_, [&](delta_t const d) -> duration_t {
+        return d == max_delta(dir_)
+                   ? kMaxDuration
+                   : static_cast<duration_t>(
+                         sgn(dir_) *
+                         (delta_to_unix(base_days, d) - start_time));
+      });
 }
 
 raptor_state& raptor_state::resize(unsigned const n_locations,
