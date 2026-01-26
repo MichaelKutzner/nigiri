@@ -21,7 +21,7 @@ bitvec to_dest(raptor_state::many_search const& many,
 }
 
 template <direction SearchDir, bool Rt>
-std::vector<duration_t> one_to_many(
+std::vector<std::optional<duration_t>> one_to_many(
     timetable const& tt,
     rt_timetable const* rtt,
     std::vector<std::vector<offset>> const& dest_offsets,
@@ -71,7 +71,7 @@ std::vector<duration_t> one_to_many(
 }
 
 template <direction SearchDir>
-std::vector<duration_t> one_to_many(
+std::vector<std::optional<duration_t>> one_to_many(
     timetable const& tt,
     rt_timetable const* rtt,
     std::vector<std::vector<offset>> const& dest_offsets,
@@ -84,13 +84,15 @@ std::vector<duration_t> one_to_many(
   }
 }
 
-template std::vector<duration_t> one_to_many<direction::kForward>(
+template std::vector<std::optional<duration_t>>
+one_to_many<direction::kForward>(
     timetable const&,
     rt_timetable const*,
     std::vector<std::vector<offset>> const& dest_offsets,
     query const& q,
     std::optional<std::function<void(raptor_state const&)>>);
-template std::vector<duration_t> one_to_many<direction::kBackward>(
+template std::vector<std::optional<duration_t>>
+one_to_many<direction::kBackward>(
     timetable const&,
     rt_timetable const*,
     std::vector<std::vector<offset>> const& dest_offsets,

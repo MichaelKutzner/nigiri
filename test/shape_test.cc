@@ -210,7 +210,6 @@ TEST(shape, single_trip_with_shape) {
         // max_transfers
         // M <- O✔, J✔, K✘, F✔, C✘
         constexpr auto const kSearchDir = direction::kBackward;
-        constexpr auto const kMaxDuration = duration_t::max();
 
         auto const start_time = unixtime_t{sys_days{2024_y / March / 1}} +
                                 12_hours;  // 30 minutes after arrival
@@ -228,11 +227,11 @@ TEST(shape, single_trip_with_shape) {
         auto const durations = nigiri::routing::one_to_many<kSearchDir>(
             tt, nullptr, dest_offsets, q);
 
-        EXPECT_EQ(durations, (std::vector{
+        EXPECT_EQ(durations, (std::vector<std::optional<duration_t>>{
                                  1_hours + 15_minutes,
                                  1_hours + 30_minutes,
-                                 kMaxDuration,
-                                 kMaxDuration,
+                                 std::nullopt,
+                                 std::nullopt,
                                  1_hours + 50_minutes,
                              }));
       }
@@ -240,7 +239,6 @@ TEST(shape, single_trip_with_shape) {
         // max_travel_time
         // M <- O✔, J+offset(both cases), G✔, F✘
         constexpr auto const kSearchDir = direction::kBackward;
-        constexpr auto const kMaxDuration = duration_t::max();
 
         auto const start_time = unixtime_t{sys_days{2024_y / March / 1}} +
                                 12_hours;  // 30 minutes after arrival
@@ -258,12 +256,12 @@ TEST(shape, single_trip_with_shape) {
         auto const durations = nigiri::routing::one_to_many<kSearchDir>(
             tt, nullptr, dest_offsets, q);
 
-        EXPECT_EQ(durations, (std::vector{
+        EXPECT_EQ(durations, (std::vector<std::optional<duration_t>>{
                                  1_hours + 15_minutes,
                                  1_hours + 40_minutes,
-                                 kMaxDuration,
+                                 std::nullopt,
                                  1_hours + 40_minutes,
-                                 kMaxDuration,
+                                 std::nullopt,
                              }));
       }
     }

@@ -12,7 +12,7 @@
 namespace nigiri::routing {
 
 template <direction SearchDir>
-std::vector<duration_t> one_to_many(
+std::vector<std::optional<duration_t>> one_to_many(
     timetable const& tt,
     rt_timetable const* rtt,
     std::vector<std::vector<offset>> const& dest_offsets,

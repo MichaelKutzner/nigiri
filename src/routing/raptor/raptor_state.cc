@@ -19,8 +19,6 @@
 
 namespace nigiri::routing {
 
-constexpr auto const kMaxDuration = duration_t::max();
-
 bool is_better(delta_t const a, delta_t const b, direction const dir) {
   return dir == direction::kForward ? a < b : b < a;
 }
@@ -73,8 +71,8 @@ raptor_state::many_search::many_search(
 
 delta_t raptor_state::many_search::update([[maybe_unused]] unsigned const k,
                                           location_idx_t::value_t const l,
-                                          delta_t const costs) {
-  if (costs == max_delta(dir_)) {
+                                          delta_t const duration) {
+  if (duration == max_delta(dir_)) {
     return worst_.delta_;
   }
   auto const loc = location_idx_t{l};
@@ -89,7 +87,7 @@ delta_t raptor_state::many_search::update([[maybe_unused]] unsigned const k,
     utl::verify(found != offsets.end(),
                 "Failed to find location {} for destination {}", loc, idx);
     auto const total_costs =
-        static_cast<delta_t>(costs + dir(found->duration().count(), dir_));
+        static_cast<delta_t>(duration + dir(found->duration().count(), dir_));
     if (is_better(total_costs, best_[idx], dir_)) {
       best_[idx] = total_costs;
       if (worst_.offset_ == idx) {
@@ -103,19 +101,19 @@ delta_t raptor_state::many_search::update([[maybe_unused]] unsigned const k,
   return worst_.delta_;
 }
 
-std::vector<duration_t> raptor_state::many_search::durations(
+std::vector<std::optional<duration_t>> raptor_state::many_search::durations(
     timetable const& tt,
     unixtime_t const start_time,
     duration_t const max_travel_time) const {
   auto const base_days = to_base_days(tt, start_time);
-  return utl::transform_to<std::vector<duration_t>>(
-      best_, [&](delta_t const d) -> duration_t {
-        if (d == max_delta(dir_)) {
-          return kMaxDuration;
-        }
-        auto const duration = static_cast<duration_t>(
-            sgn(dir_) * (delta_to_unix(base_days, d) - start_time));
-        return duration <= max_travel_time ? duration : kMaxDuration;
+  return utl::transform_to<std::vector<std::optional<duration_t>>>(
+      best_, [&](delta_t const d) -> std::optional<duration_t> {
+        return d == max_delta(dir_) ? std::nullopt : [&]() {
+          auto const duration = static_cast<duration_t>(
+              sgn(dir_) * (delta_to_unix(base_days, d) - start_time));
+          return duration <= max_travel_time ? std::optional{duration}
+                                             : std::nullopt;
+        }();
       });
 }
 

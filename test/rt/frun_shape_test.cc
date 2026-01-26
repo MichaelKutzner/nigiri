@@ -259,8 +259,6 @@ TRIP_14,13:15:00,13:15:00,W,3,0,0,
 
 )"sv;
 
-constexpr auto const kMaxDuration = duration_t::max();
-
 TEST(
     rt,
     frun_for_each_shape_point_when_shapes_are_provided_then_process_all_subshapes) {
@@ -1031,7 +1029,8 @@ TEST(
     auto const durations =
         nigiri::routing::one_to_many<kSearchDir>(tt, &rtt, dest_offsets, q);
 
-    EXPECT_EQ(durations, (std::vector{2_hours, 2_hours + 15_minutes, 6_hours}));
+    EXPECT_EQ(durations, (std::vector<std::optional<duration_t>>{
+                             2_hours, 2_hours + 15_minutes, 6_hours}));
   }
   // One-to-Many, many offsets per start / target
   {
@@ -1064,14 +1063,14 @@ TEST(
     auto const durations =
         nigiri::routing::one_to_many<kSearchDir>(tt, &rtt, dest_offsets, q);
 
-    EXPECT_EQ(durations, (std::vector{
+    EXPECT_EQ(durations, (std::vector<std::optional<duration_t>>{
                              3_hours + 10_minutes,
                              2_hours + 2_minutes,
                              2_hours + 45_minutes,
                              5_hours + 5_minutes,
                              3_hours + 10_minutes,
                              5_hours + 50_minutes,
-                             kMaxDuration,
+                             std::nullopt,
                              6_hours + 6_minutes,
                          }));
   }
@@ -1103,8 +1102,8 @@ TEST(
     auto const durations = nigiri::routing::one_to_many<kSearchDir>(
         tt, &rtt, dest_offsets, q, check_abort_cb);
 
-    EXPECT_EQ(durations,
-              (std::vector{2_hours + 10_minutes, kMaxDuration, 1_hours}));
+    EXPECT_EQ(durations, (std::vector<std::optional<duration_t>>{
+                             2_hours + 10_minutes, std::nullopt, 1_hours}));
     EXPECT_EQ(reachable_test, Reachable::unreachable);
   }
   // One-to-Many backward
@@ -1135,13 +1134,13 @@ TEST(
     auto const durations =
         nigiri::routing::one_to_many<kSearchDir>(tt, &rtt, dest_offsets, q);
 
-    EXPECT_EQ(durations, (std::vector{
+    EXPECT_EQ(durations, (std::vector<std::optional<duration_t>>{
                              3_hours,
                              5_hours + 5_minutes,
                              5_hours,
-                             kMaxDuration,
-                             kMaxDuration,
-                             kMaxDuration,
+                             std::nullopt,
+                             std::nullopt,
+                             std::nullopt,
                              2_hours + 2_minutes,
                              3_hours + 15_minutes,
                              6_hours + 30_minutes,

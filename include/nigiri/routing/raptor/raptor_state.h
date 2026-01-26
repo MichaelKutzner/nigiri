@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -30,9 +31,9 @@ struct raptor_state {
 
     many_search(std::vector<std::vector<offset>> const&, direction);
     delta_t update(unsigned k, location_idx_t::value_t, delta_t);
-    std::vector<duration_t> durations(timetable const&,
-                                      unixtime_t,
-                                      duration_t) const;
+    std::vector<std::optional<duration_t>> durations(timetable const&,
+                                                     unixtime_t,
+                                                     duration_t) const;
 
     std::vector<std::vector<offset>> const& dest_offsets_{};
     std::vector<delta_t> best_{};
