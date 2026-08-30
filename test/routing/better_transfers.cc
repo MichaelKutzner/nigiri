@@ -99,6 +99,12 @@ S1a,10:42:00,10:43:00,I,2
 S1a,10:50:00,10:53:00,M,3
 S1a,11:03:00,11:05:00,L,4
 S1a,12:00:00,12:00:00,B,5
+S2a,11:00:00,11:00:00,E,0
+S2a,12:00:00,12:02:00,L,1
+S2a,12:10:00,12:13:00,M,2
+S2a,12:20:00,12:21:00,I,3
+S2a,12:27:00,12:28:00,N,4
+S2a,13:00:00,13:00:00,F,5
 
 #calendar_dates.txt
 service_id,date,exception_type
@@ -113,9 +119,6 @@ from_stop_id,to_stop_id,transfer_type,min_transfer_time
 // Prefer stop with largest time for transfers
 TEST(routing, better_transfers_same_direction) {
   auto tt = load_timetable(test_files_1);
-  // fmt::println("DEBUG: #loc: {}  #ags: {}  #route: {}  #trip: {}",
-  //              tt.n_locations(), tt.n_agencies(), tt.n_routes(),
-  //              tt.n_trips());
 
   auto const A = loc_idx(tt, "A");
   auto const E = loc_idx(tt, "E");
@@ -155,10 +158,45 @@ leg 4: (E, E) [2019-05-01 10:00] -> (END, END) [2019-05-01 10:02]
   ASSERT_EQ(results.size(), 1);
   EXPECT_EQ(expected_better_transfer,
             test::print_results(tt, nullptr, results));
-  // EXPECT_EQ(expected_better_transfer, print_journey(tt, results.front()));
 }
 
 // Prefer stop with largest time for transfers
 TEST(routing, better_transfers_opposite_direction) {
-  // TODO: MK - Implement
+  auto tt = load_timetable(test_files_1);
+
+  auto const A = loc_idx(tt, "A");
+  auto const F = loc_idx(tt, "F");
+
+  auto q = routing::query{
+      .start_time_ = interval{.from_ = date::sys_days{2019_y / May / 1},
+                              .to_ = date::sys_days{2019_y / May / 2}},
+      .start_match_mode_ = nigiri::routing::location_match_mode::kIntermodal,
+      .dest_match_mode_ = nigiri::routing::location_match_mode::kIntermodal,
+      .start_ = {{A, 1_minutes, 0U}},
+      .destination_ = {{F, 2_minutes, 0U}}};
+  auto const results = test::raptor_search(tt, nullptr, std::move(q));
+
+  constexpr auto const expected_better_transfer = R"(
+[2019-05-01 07:59, 2019-05-01 11:02]
+TRANSFERS: 1
+     FROM: (START, START) [2019-05-01 07:59]
+       TO: (END, END) [2019-05-01 11:02]
+leg 0: (START, START) [2019-05-01 07:59] -> (A, A) [2019-05-01 08:00]
+  MUMO (id=0, duration=1)
+leg 1: (A, A) [2019-05-01 08:00] -> (Near, N) [2019-05-01 08:35]
+   0: A       A...............................................                               d: 01.05 08:00 [01.05 10:00]  [{name=S-Forward, day=2019-05-01, id=S1a, src=0}]
+   1: N       Near............................................ a: 01.05 08:35 [01.05 10:35]
+leg 2: (Near, N) [2019-05-01 08:35] -> (Near, N) [2019-05-01 08:37]
+  FOOTPATH (duration=2)
+leg 3: (Near, N) [2019-05-01 10:28] -> (F, F) [2019-05-01 11:00]
+   4: N       Near............................................                               d: 01.05 10:28 [01.05 12:28]  [{name=S-Backward, day=2019-05-01, id=S2a, src=0}]
+   5: F       F............................................... a: 01.05 11:00 [01.05 13:00]
+leg 4: (F, F) [2019-05-01 11:00] -> (END, END) [2019-05-01 11:02]
+  MUMO (id=0, duration=2)
+
+
+)"sv;
+  ASSERT_EQ(results.size(), 1);
+  EXPECT_EQ(expected_better_transfer,
+            test::print_results(tt, nullptr, results));
 }
